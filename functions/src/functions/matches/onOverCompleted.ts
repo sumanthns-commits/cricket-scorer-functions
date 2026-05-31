@@ -8,7 +8,7 @@ interface DeliveryEvent {
   bowlerId: string;
   runs: number;
   extras: number;
-  wicket?: { type: string; fielderId?: string };
+  wicket?: { type: string; fielderId?: string; fielderIds?: string[] };
   isWide?: boolean;
   isNoBall?: boolean;
 }
@@ -30,6 +30,9 @@ export const onOverCompleted = onDocumentCreated(
     const db = getFirestore();
     const batch = db.batch();
     const matchRef = db.collection("matches").doc(matchId);
+
+    const matchSnap = await matchRef.get();
+    const clubId = matchSnap.data()?.clubId as string | undefined;
 
     // Seal the over doc
     batch.update(event.data!.ref, { sealed: true, sealedAt: Timestamp.now() });
@@ -68,15 +71,27 @@ export const onOverCompleted = onDocumentCreated(
         if (d.wicket.type === "caught" && d.wicket.fielderId) {
           fieldingEvents.push({ type: "catch", fielderId: d.wicket.fielderId });
         }
-        if (d.wicket.type === "runOut" && d.wicket.fielderId) {
-          fieldingEvents.push({ type: "runOut", fielderId: d.wicket.fielderId });
+        if (d.wicket.type === "runOut") {
+          const ids = d.wicket.fielderIds ?? (d.wicket.fielderId ? [d.wicket.fielderId] : []);
+          for (const fid of ids) {
+            fieldingEvents.push({ type: "runOut", fielderId: fid });
+          }
         }
       }
     }
 
+    const applyToPlayer = (playerId: string, updates: Record<string, FirebaseFirestore.FieldValue>) => {
+      batch.update(db.collection("players").doc(playerId), updates);
+      if (clubId) {
+        batch.update(
+          db.collection("clubs").doc(clubId).collection("players").doc(playerId),
+          updates,
+        );
+      }
+    };
+
     // Apply batsman stat increments
     for (const [playerId, runs] of batsmanRuns) {
-      const ref = db.collection("players").doc(playerId);
       const updates: Record<string, FirebaseFirestore.FieldValue> = {
         "careerStats.totalRuns": FieldValue.increment(runs),
       };
@@ -84,12 +99,11 @@ export const onOverCompleted = onDocumentCreated(
       if (balls > 0) updates["careerStats.totalBallsFaced"] = FieldValue.increment(balls);
       const dismissals = batsmanDismissals.get(playerId) ?? 0;
       if (dismissals > 0) updates["careerStats.totalDismissals"] = FieldValue.increment(dismissals);
-      batch.update(ref, updates);
+      applyToPlayer(playerId, updates);
     }
 
     // Apply bowler stat increments
     for (const [playerId, balls] of bowlerBalls) {
-      const ref = db.collection("players").doc(playerId);
       const runs = bowlerRuns.get(playerId) ?? 0;
       const wickets = bowlerWickets.get(playerId) ?? 0;
       const updates: Record<string, FirebaseFirestore.FieldValue> = {
@@ -97,7 +111,7 @@ export const onOverCompleted = onDocumentCreated(
         "careerStats.totalRunsConceded": FieldValue.increment(runs),
       };
       if (wickets > 0) updates["careerStats.totalWickets"] = FieldValue.increment(wickets);
-      batch.update(ref, updates);
+      applyToPlayer(playerId, updates);
     }
 
     // Apply fielding stat increments
@@ -108,14 +122,10 @@ export const onOverCompleted = onDocumentCreated(
       if (fe.type === "runOut") runOutCounts.set(fe.fielderId, (runOutCounts.get(fe.fielderId) ?? 0) + 1);
     }
     for (const [playerId, count] of catchCounts) {
-      batch.update(db.collection("players").doc(playerId), {
-        "careerStats.totalCatches": FieldValue.increment(count),
-      });
+      applyToPlayer(playerId, { "careerStats.totalCatches": FieldValue.increment(count) });
     }
     for (const [playerId, count] of runOutCounts) {
-      batch.update(db.collection("players").doc(playerId), {
-        "careerStats.totalRunOuts": FieldValue.increment(count),
-      });
+      applyToPlayer(playerId, { "careerStats.totalRunOuts": FieldValue.increment(count) });
     }
 
     // Update liveScore summary on match doc

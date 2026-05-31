@@ -13,8 +13,10 @@ export { onStatsImport } from "./functions/imports/onStatsImport.js";
 
 export { onMatchStarted } from "./functions/matches/onMatchStarted.js";
 export { onOverCompleted } from "./functions/matches/onOverCompleted.js";
+export { onMatchCompleted } from "./functions/matches/onMatchCompleted.js";
 
 export { getAvailablePlayers } from "./functions/tools/getAvailablePlayers.js";
+export { getClubPlayerStats } from "./functions/tools/getClubPlayerStats.js";
 export { getPlayerStats } from "./functions/tools/getPlayerStats.js";
 export { getPlayerForm } from "./functions/tools/getPlayerForm.js";
 export { getBattingInsights } from "./functions/tools/getBattingInsights.js";

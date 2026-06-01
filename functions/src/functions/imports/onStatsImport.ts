@@ -146,7 +146,6 @@ export const onStatsImport = onObjectFinalized(
           clubId,
           rawName: row.rawName,
           playerType: "ghost",
-          claimStatus: "open",
           careerStats: { ...emptyStats(), ...row.stats },
           fuzzyMatchCandidates: [],
           createdAt: now,

@@ -1,5 +1,4 @@
-export type PlayerType = "ghost" | "linked" | "registered";
-export type ClaimStatus = "open" | "cooldown" | "contested" | "merged" | "rejected";
+export type PlayerType = "ghost" | "registered";
 export type MatchStatus = "scheduled" | "live" | "completed" | "abandoned";
 
 export interface CareerStats {
@@ -15,52 +14,22 @@ export interface CareerStats {
   matchesPlayed: number;
 }
 
-export interface GhostPlayer {
+export interface Player {
   id: string;
   clubId: string;
   rawName: string;
+  displayName?: string;
   playerType: PlayerType;
-  claimStatus: ClaimStatus;
-  activeClaim?: string;
+  uid?: string;
   careerStats: CareerStats;
   fuzzyMatchScore?: number;
   fuzzyMatchCandidates?: FuzzyCandidate[];
-}
-
-export interface RegisteredPlayer {
-  id: string;
-  clubId: string;
-  displayName: string;
-  careerStats: CareerStats;
-  activeClaim?: string;
 }
 
 export interface FuzzyCandidate {
   playerId: string;
   displayName: string;
   score: number;
-}
-
-export interface ClaimSnapshot {
-  ghostStats: CareerStats;
-  registeredStats: CareerStats;
-  mergedStats: CareerStats;
-}
-
-export interface Claim {
-  id: string;
-  clubId: string;
-  ghostPlayerId: string;
-  claimantUid: string;
-  registeredPlayerId: string;
-  status: ClaimStatus;
-  snapshot: ClaimSnapshot;
-  cooldownEndsAt?: FirebaseFirestore.Timestamp;
-  cloudTaskName?: string;
-  contestedByClaimId?: string;
-  waitingClaimId?: string;
-  createdAt: FirebaseFirestore.Timestamp;
-  updatedAt: FirebaseFirestore.Timestamp;
 }
 
 export interface MatchRules {

@@ -16,12 +16,14 @@ export const getPlayerStats = onCall(
     await assertClubMember(uid, clubId);
 
     const db = getFirestore();
-    const snap = await db.collection("players").doc(playerId).get();
+    const snap = await db
+      .collection("clubs")
+      .doc(clubId)
+      .collection("players")
+      .doc(playerId)
+      .get();
     if (!snap.exists) throw new HttpsError("not-found", "Player not found");
 
-    const data = snap.data()!;
-    if (data.clubId !== clubId) throw new HttpsError("permission-denied", "Player not in club");
-
-    return { id: snap.id, ...data };
+    return { id: snap.id, ...snap.data() };
   }
 );

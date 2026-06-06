@@ -17,9 +17,9 @@ export const getAvailablePlayers = onCall(
 
     const db = getFirestore();
     const snap = await db
+      .collection("clubs")
+      .doc(clubId)
       .collection("players")
-      .where("clubId", "==", clubId)
-      .where("playerType", "==", "registered")
       .get();
 
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));

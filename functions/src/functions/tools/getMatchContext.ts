@@ -16,12 +16,14 @@ export const getMatchContext = onCall(
     await assertClubMember(uid, clubId);
 
     const db = getFirestore();
-    const matchSnap = await db.collection("matches").doc(matchId).get();
+    const matchSnap = await db
+      .collection("clubs")
+      .doc(clubId)
+      .collection("matches")
+      .doc(matchId)
+      .get();
     if (!matchSnap.exists) throw new HttpsError("not-found", "Match not found");
 
-    const match = matchSnap.data()!;
-    if (match.clubId !== clubId) throw new HttpsError("permission-denied", "Match not in club");
-
-    return { id: matchSnap.id, ...match };
+    return { id: matchSnap.id, ...matchSnap.data() };
   }
 );

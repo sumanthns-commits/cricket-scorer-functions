@@ -1,0 +1,78 @@
+rules_version = '2';
+
+// Cricket Scorer security rules.
+// Cloud Functions use the Admin SDK, which BYPASSES these rules — so all
+// stat mutations (careerStats via FieldValue.increment, claim merges, etc.)
+// happen server-side and are intentionally NOT writable from the client here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isMember(clubId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/clubs/$(clubId)/players/$(request.auth.uid));
+    }
+    function isAdmin(clubId) {
+      return isMember(clubId)
+        && get(/databases/$(database)/documents/clubs/$(clubId)/players/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ── Users (public-ish profile docs) ──
+    match /users/{uid} {
+      allow read: if isSignedIn();              // resolve display names, etc.
+      allow write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── Club membership index ──
+    match /userMemberships/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── Clubs ──
+    match /clubs/{clubId} {
+      allow read: if isMember(clubId);
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAdmin(clubId);
+      allow delete: if false;
+
+      // ── Players ──
+      match /players/{playerId} {
+        // Any club member may view any player's profile.
+        allow read: if isMember(clubId);
+
+        // Bootstrap: the club creator makes their own (admin) player doc.
+        // Otherwise only an existing admin can add players.
+        allow create: if isAdmin(clubId)
+          || (request.auth.uid == playerId
+              && get(/databases/$(database)/documents/clubs/$(clubId)).data.createdBy == request.auth.uid);
+
+        // Admins may edit any player; a member may edit only their own — and only
+        // the editable profile fields. careerStats / type / role / activeClaim
+        // are NOT in this set, so they can never be changed from the client.
+        allow update: if (isAdmin(clubId) || request.auth.uid == playerId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'photoURL']);
+
+        allow delete: if isAdmin(clubId);
+      }
+
+      // ── Matches + overs (live scoring) ──
+      match /matches/{matchId} {
+        allow read, create, update: if isMember(clubId);
+        allow delete: if isAdmin(clubId);
+
+        match /overs/{overId} {
+          allow read, write: if isMember(clubId);
+        }
+      }
+
+      // ── Claims (created/merged by Cloud Functions only) ──
+      match /claims/{claimId} {
+        allow read: if isMember(clubId);
+        allow write: if false;
+      }
+    }
+  }
+}

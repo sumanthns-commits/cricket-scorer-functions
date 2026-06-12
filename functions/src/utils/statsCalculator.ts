@@ -17,7 +17,11 @@ export function computeSkillRating(stats: CareerStats): number {
       : 0;
 
   const wicketContrib = stats.totalWickets * 20;
-  const catchContrib = (stats.totalCatches + stats.totalRunOuts) * 5;
+  // Dismissals credited to a fielder/keeper, plus net points from non-dismissal
+  // fielding events (great stops add, drops/misfields subtract).
+  const catchContrib =
+    (stats.totalCatches + stats.totalRunOuts + (stats.totalStumpings ?? 0)) * 5 +
+    (stats.fieldingPoints ?? 0);
 
   const battingScore = battingAvg * 0.4 + strikeRate * 0.1;
   const bowlingScore = economy > 0 ? Math.max(0, (12 - economy) * 5) : 0;

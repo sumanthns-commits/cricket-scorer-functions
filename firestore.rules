@@ -30,6 +30,27 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
+    // ── Public per-club player stats mirror ──
+    // Server-written (Admin SDK via mirrorPlayerStats) copy of each registered
+    // player's career stats, keyed `${uid}_${clubId}`. Readable by any signed-in
+    // user so a club admin can review a join requester's record across every club
+    // they belong to — without exposing the (member-private) club player docs.
+    match /publicPlayerStats/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ── Club name registry ──
+    // Enforces unique club names without exposing the (member-private) clubs
+    // collection. Doc id = normalised name. Anyone signed in may read (to check
+    // availability / run the create transaction) and reserve a name for a club
+    // they own. Reservations are released only by the Admin SDK (cleanup fn).
+    match /clubNames/{nameId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // ── Clubs ──
     match /clubs/{clubId} {
       allow read: if isMember(clubId);
@@ -72,6 +93,21 @@ service cloud.firestore {
       match /claims/{claimId} {
         allow read: if isMember(clubId);
         allow write: if false;
+      }
+
+      // ── Join requests ──
+      // A non-member raises a request to join (doc id = their own uid, so one
+      // open request per club). Admins list/read pending requests; the requester
+      // can read their own status and cancel it. Approval/rejection is performed
+      // only by the resolveJoinRequest Cloud Function (Admin SDK), never the
+      // client — hence update is closed here.
+      match /joinRequests/{requestId} {
+        allow create: if isSignedIn()
+          && request.auth.uid == requestId
+          && request.resource.data.status == 'pending';
+        allow read: if isAdmin(clubId) || request.auth.uid == requestId;
+        allow delete: if request.auth.uid == requestId;
+        allow update: if false;
       }
     }
   }

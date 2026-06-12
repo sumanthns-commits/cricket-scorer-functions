@@ -22,6 +22,10 @@ export const getAvailablePlayers = onCall(
       .collection("players")
       .get();
 
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // Exclude linked ghosts — they've been absorbed into a registered member,
+    // so surfacing them would let the AI pick the same person twice.
+    return snap.docs
+      .filter((d) => d.data().type !== "linked")
+      .map((d) => ({ id: d.id, ...d.data() }));
   }
 );

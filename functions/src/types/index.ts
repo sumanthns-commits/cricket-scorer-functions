@@ -10,8 +10,12 @@ export interface CareerStats {
   totalRunsConceded: number;
   totalCatches: number;
   totalRunOuts: number;
+  totalStumpings: number;
   highScore: number;
   matchesPlayed: number;
+  // Net rating points from non-dismissal fielding events, baked in at match
+  // completion from each event's polarity (positive adds, negative subtracts).
+  fieldingPoints?: number;
 }
 
 export interface Player {

@@ -34,7 +34,17 @@ src/
 - Ghost stats: always from claim.snapshot.ghostStats
 - Registered stats: always read live at merge time
 - CareerStats fields: totalRuns, totalWickets, totalBallsFaced, totalDismissals,
-  totalBallsBowled, totalRunsConceded, totalCatches, totalRunOuts, highScore, matchesPlayed
+  totalBallsBowled, totalRunsConceded, totalCatches, totalRunOuts, totalStumpings,
+  highScore, matchesPlayed, fieldingPoints (net rating points from fielding events)
+
+## Fielding rating rule
+- Dismissals credit the fielder/keeper: caught→totalCatches, stumped→totalStumpings,
+  run-out→totalRunOuts (every fielderId on the ball).
+- Non-dismissal fielding events have a polarity (positive | negative | neutral) set
+  per-club in the rules screen. onMatchCompleted resolves polarity→points using THIS
+  match's rules snapshot (POLARITY_POINTS: +3 / -3 / 0) and accumulates a signed
+  careerStats.fieldingPoints. Points are frozen at completion (immune to later edits).
+- computeSkillRating: (catches + runOuts + stumpings) × 5 + fieldingPoints.
 
 ## Claim guards (initiateClaim — all in one transaction)
 1. Claimant already has activeClaim → reject

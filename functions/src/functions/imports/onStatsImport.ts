@@ -37,6 +37,7 @@ function parseCSV(content: string): ParsedPlayerRow[] {
         totalRunsConceded: parseInt(row["runs_conceded"] ?? "0") || 0,
         totalCatches: parseInt(row["catches"] ?? "0") || 0,
         totalRunOuts: parseInt(row["run_outs"] ?? "0") || 0,
+        totalStumpings: parseInt(row["stumpings"] ?? "0") || 0,
         highScore: parseInt(row["high_score"] ?? "0") || 0,
         matchesPlayed: parseInt(row["matches"] ?? "0") || 0,
       },
@@ -80,6 +81,7 @@ const emptyStats = (): CareerStats => ({
   totalRunsConceded: 0,
   totalCatches: 0,
   totalRunOuts: 0,
+  totalStumpings: 0,
   highScore: 0,
   matchesPlayed: 0,
 });

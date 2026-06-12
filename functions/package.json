@@ -8,6 +8,7 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
+    "backfill": "npm run build && node lib/scripts/backfillPerformances.js",
     "logs": "firebase functions:log"
   },
   "engines": {

@@ -23,8 +23,33 @@ export const getBattingInsights = onCall(
       .doc(playerId)
       .get();
 
-    // No separate insights store yet — surface the player's career stats so the
-    // model has batting data to reason over (returns {} if the player is gone).
-    return snap.exists ? { id: snap.id, ...snap.data() } : {};
+    if (!snap.exists) return {};
+
+    const data = snap.data() ?? {};
+
+    // wagonWheel is accumulated by onMatchCompleted as a map { sector → runs }.
+    // Normalise to a dense 12-length array (also tolerates a stored array).
+    const SECTORS = 12;
+    const stored = data.careerStats?.wagonWheel;
+    const wagonWheel = new Array<number>(SECTORS).fill(0);
+    if (Array.isArray(stored)) {
+      for (let i = 0; i < Math.min(stored.length, SECTORS); i++) {
+        wagonWheel[i] = typeof stored[i] === "number" ? stored[i] : 0;
+      }
+    } else if (stored && typeof stored === "object") {
+      for (const [k, v] of Object.entries(stored as Record<string, unknown>)) {
+        const sector = Number(k);
+        if (Number.isInteger(sector) && sector >= 0 && sector < SECTORS) {
+          wagonWheel[sector] = typeof v === "number" ? v : 0;
+        }
+      }
+    }
+
+    return {
+      id: snap.id,
+      ...data,
+      wagonWheel,
+      batsmanHand: data.battingHand === "LHB" ? "LHB" : "RHB",
+    };
   }
 );

@@ -10,12 +10,15 @@ export const getPlayerForm = onCall(
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Must be signed in");
 
-    const { clubId, playerId, lastN = 5 } = request.data as {
+    // The app sends `lastNMatches`; the AI tool layer sends `lastN`. Accept both.
+    const { clubId, playerId, lastN, lastNMatches } = request.data as {
       clubId: string;
       playerId: string;
       lastN?: number;
+      lastNMatches?: number;
     };
     if (!clubId || !playerId) throw new HttpsError("invalid-argument", "Missing required fields");
+    const limit = lastNMatches ?? lastN ?? 5;
 
     await assertClubMember(uid, clubId);
 
@@ -25,7 +28,7 @@ export const getPlayerForm = onCall(
       .where("clubId", "==", clubId)
       .where("playerId", "==", playerId)
       .orderBy("createdAt", "desc")
-      .limit(lastN)
+      .limit(limit)
       .get();
 
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));

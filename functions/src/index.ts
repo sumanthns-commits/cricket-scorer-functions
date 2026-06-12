@@ -6,12 +6,14 @@ setGlobalOptions({ region: "australia-southeast1", maxInstances: 10 });
 
 export { onStatsImport } from "./functions/imports/onStatsImport.js";
 
-export { onMatchStarted } from "./functions/matches/onMatchStarted.js";
-export { onOverCompleted } from "./functions/matches/onOverCompleted.js";
 export { onMatchCompleted } from "./functions/matches/onMatchCompleted.js";
 
-export { linkGhostPlayer } from "./functions/players/linkGhostPlayer.js";
-export { unlinkPlayer } from "./functions/players/unlinkPlayer.js";
+export { cleanupArchivedClubs } from "./functions/clubs/cleanupArchivedClubs.js";
+export { resolveJoinRequest } from "./functions/clubs/resolveJoinRequest.js";
+export { syncClubNameArchived } from "./functions/clubs/syncClubNameArchived.js";
+
+export { unlinkGhost } from "./functions/players/unlinkGhost.js";
+export { mirrorPlayerStats } from "./functions/players/mirrorPlayerStats.js";
 
 export { getAvailablePlayers } from "./functions/tools/getAvailablePlayers.js";
 export { getClubPlayerStats } from "./functions/tools/getClubPlayerStats.js";

@@ -74,7 +74,7 @@ service cloud.firestore {
         // are NOT in this set, so they can never be changed from the client.
         allow update: if (isAdmin(clubId) || request.auth.uid == playerId)
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'photoURL']);
+               .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'wicketKeeping', 'photoURL']);
 
         allow delete: if isAdmin(clubId);
       }

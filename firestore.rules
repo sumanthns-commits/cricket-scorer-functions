@@ -72,7 +72,11 @@ service cloud.firestore {
         // Admins may edit any player; a member may edit only their own — and only
         // the editable profile fields. careerStats / type / role / activeClaim
         // are NOT in this set, so they can never be changed from the client.
-        allow update: if (isAdmin(clubId) || request.auth.uid == playerId)
+        // strengthOverride is admin-only (subjective skill levels for AI balancing).
+        allow update: if isAdmin(clubId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'wicketKeeping', 'photoURL', 'strengthOverride'])
+          || (request.auth.uid == playerId)
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'wicketKeeping', 'photoURL']);
 

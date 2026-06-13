@@ -70,12 +70,12 @@ service cloud.firestore {
               && get(/databases/$(database)/documents/clubs/$(clubId)).data.createdBy == request.auth.uid);
 
         // Admins may edit any player; a member may edit only their own — and only
-        // the editable profile fields. careerStats / type / role / activeClaim
+        // the editable profile fields. careerStats / type / activeClaim
         // are NOT in this set, so they can never be changed from the client.
-        // strengthOverride is admin-only (subjective skill levels for AI balancing).
+        // strengthOverride and role are admin-only.
         allow update: if isAdmin(clubId)
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'wicketKeeping', 'photoURL', 'strengthOverride'])
+               .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'wicketKeeping', 'photoURL', 'strengthOverride', 'role'])
           || (request.auth.uid == playerId)
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['displayName', 'battingHand', 'bowlingStyle', 'wicketKeeping', 'photoURL']);

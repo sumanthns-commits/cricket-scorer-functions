@@ -12,6 +12,7 @@ export { cleanupArchivedClubs } from "./functions/clubs/cleanupArchivedClubs.js"
 export { resolveJoinRequest } from "./functions/clubs/resolveJoinRequest.js";
 export { syncClubNameArchived } from "./functions/clubs/syncClubNameArchived.js";
 
+export { linkGhost } from "./functions/players/linkGhost.js";
 export { unlinkGhost } from "./functions/players/unlinkGhost.js";
 export { mirrorPlayerStats } from "./functions/players/mirrorPlayerStats.js";
 

@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import {createHash} from "crypto";
+import {getFirestore} from "firebase-admin/firestore";
 
 interface CacheEntry {
   keyId: string;
@@ -22,7 +22,7 @@ export async function verifyApiKey(
 
   const cached = cache.get(hash);
   if (cached && cached.expiresAt > now) {
-    return { keyId: cached.keyId, clubId: cached.clubId };
+    return {keyId: cached.keyId, clubId: cached.clubId};
   }
 
   const db = getFirestore();
@@ -44,7 +44,7 @@ export async function verifyApiKey(
   cache.set(hash, entry);
 
   // async — intentionally not awaited
-  doc.ref.update({ lastUsedAt: new Date() }).catch(() => undefined);
+  doc.ref.update({lastUsedAt: new Date()}).catch(() => undefined);
 
-  return { keyId: entry.keyId, clubId: entry.clubId };
+  return {keyId: entry.keyId, clubId: entry.clubId};
 }

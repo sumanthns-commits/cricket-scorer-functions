@@ -1,5 +1,5 @@
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import {getFirestore, FieldValue} from "firebase-admin/firestore";
 
 const REGION = "australia-southeast1";
 
@@ -16,7 +16,7 @@ const REGION = "australia-southeast1";
  * is not a real uid and they never raise join requests.
  */
 export const mirrorPlayerStats = onDocumentWritten(
-  { document: "clubs/{clubId}/players/{playerId}", region: REGION },
+  {document: "clubs/{clubId}/players/{playerId}", region: REGION},
   async (event) => {
     const clubId = event.params.clubId as string;
     const playerId = event.params.playerId as string;
@@ -48,7 +48,7 @@ export const mirrorPlayerStats = onDocumentWritten(
         careerStats: after.careerStats ?? {},
         updatedAt: FieldValue.serverTimestamp(),
       },
-      { merge: true },
+      {merge: true},
     );
   },
 );

@@ -1,16 +1,16 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
-import { assertClubMember } from "../../services/firebaseAuth.js";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getFirestore} from "firebase-admin/firestore";
+import {assertClubMember} from "../../services/firebaseAuth.js";
 
 const REGION = "australia-southeast1";
 
 export const getAvailablePlayers = onCall(
-  { region: REGION },
+  {region: REGION},
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Must be signed in");
 
-    const { clubId, matchId } = request.data as { clubId: string; matchId?: string };
+    const {clubId, matchId} = request.data as { clubId: string; matchId?: string };
     if (!clubId) throw new HttpsError("invalid-argument", "Missing clubId");
 
     await assertClubMember(uid, clubId);
@@ -41,6 +41,6 @@ export const getAvailablePlayers = onCall(
     return snap.docs
       .filter((d) => d.data().type !== "linked")
       .filter((d) => !squadIds || squadIds.has(d.id))
-      .map((d) => ({ id: d.id, ...d.data() }));
+      .map((d) => ({id: d.id, ...d.data()}));
   }
 );

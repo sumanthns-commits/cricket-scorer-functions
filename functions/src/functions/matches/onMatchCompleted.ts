@@ -1,5 +1,5 @@
-import { onDocumentUpdated } from "firebase-functions/v2/firestore";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import {getFirestore, FieldValue} from "firebase-admin/firestore";
 
 const REGION = "australia-southeast1";
 
@@ -67,7 +67,7 @@ type FsUpdate = Record<string, FirebaseFirestore.FieldValue | number | Record<st
  * real over schema (balls: BallEntry[]). Admin SDK → bypasses Firestore rules.
  */
 export const onMatchCompleted = onDocumentUpdated(
-  { document: "clubs/{clubId}/matches/{matchId}", region: REGION },
+  {document: "clubs/{clubId}/matches/{matchId}", region: REGION},
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -110,7 +110,9 @@ export const onMatchCompleted = onDocumentUpdated(
     const pm = new Map<string, PlayerMatch>();
     const pmOf = (id: string): PlayerMatch => {
       let v = pm.get(id);
-      if (!v) { v = emptyPM(); pm.set(id, v); }
+      if (!v) {
+        v = emptyPM(); pm.set(id, v);
+      }
       return v;
     };
     const inningsTotal: Record<string, number> = {};
@@ -148,8 +150,8 @@ export const onMatchCompleted = onDocumentUpdated(
           } else if (type === "stumped" && ball.dismissal.fielderId) {
             pmOf(ball.dismissal.fielderId).stumpings += 1;
           } else if (type === "run-out") {
-            const ids = ball.dismissal.fielderIds
-              ?? (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
+            const ids = ball.dismissal.fielderIds ??
+              (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
             for (const fid of ids) pmOf(fid).runOuts += 1;
           }
         }
@@ -180,7 +182,7 @@ export const onMatchCompleted = onDocumentUpdated(
 
     const played = Array.from(new Set([...teamA, ...teamB]));
     if (played.length === 0) {
-      await matchRef.update({ winnerTeam, statsAggregated: true });
+      await matchRef.update({winnerTeam, statsAggregated: true});
       return;
     }
 
@@ -203,7 +205,9 @@ export const onMatchCompleted = onDocumentUpdated(
     const updatesById = new Map<string, FsUpdate>();
     const ensure = (id: string): FsUpdate => {
       let u = updatesById.get(id);
-      if (!u) { u = {}; updatesById.set(id, u); }
+      if (!u) {
+        u = {}; updatesById.set(id, u);
+      }
       return u;
     };
 
@@ -230,7 +234,7 @@ export const onMatchCompleted = onDocumentUpdated(
       // map keys (not field paths), so spaces/dots in labels are safe.
       const events = Object.entries(m.fieldingEvents);
       if (events.length > 0) {
-        const merged: Record<string, number> = { ...(careerFE.get(id) ?? {}) };
+        const merged: Record<string, number> = {...(careerFE.get(id) ?? {})};
         for (const [label, count] of events) merged[label] = (merged[label] ?? 0) + count;
         u["careerStats.fieldingEventCounts"] = merged;
       }
@@ -295,7 +299,7 @@ export const onMatchCompleted = onDocumentUpdated(
       );
     }
 
-    batch.update(matchRef, { winnerTeam, statsAggregated: true });
+    batch.update(matchRef, {winnerTeam, statsAggregated: true});
     await batch.commit();
   },
 );

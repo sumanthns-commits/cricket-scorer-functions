@@ -1,9 +1,9 @@
-import { onObjectFinalized } from "firebase-functions/v2/storage";
-import { getStorage } from "firebase-admin/storage";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { PDFParse } from "pdf-parse";
-import { findMatches } from "../../services/fuzzyMatcher.js";
-import type { CareerStats } from "../../types/index.js";
+import {onObjectFinalized} from "firebase-functions/v2/storage";
+import {getStorage} from "firebase-admin/storage";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {PDFParse} from "pdf-parse";
+import {findMatches} from "../../services/fuzzyMatcher.js";
+import type {CareerStats} from "../../types/index.js";
 
 const REGION = "australia-southeast1";
 
@@ -21,7 +21,9 @@ function parseCSV(content: string): ParsedPlayerRow[] {
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",").map((c) => c.trim());
     const row: Record<string, string> = {};
-    headers.forEach((h, idx) => { row[h] = cols[idx] ?? ""; });
+    headers.forEach((h, idx) => {
+      row[h] = cols[idx] ?? "";
+    });
 
     const rawName = row["name"] ?? row["player"] ?? "";
     if (!rawName) continue;
@@ -87,7 +89,7 @@ const emptyStats = (): CareerStats => ({
 });
 
 export const onStatsImport = onObjectFinalized(
-  { region: REGION },
+  {region: REGION},
   async (event) => {
     const filePath = event.data.name;
     const contentType = event.data.contentType ?? "";
@@ -106,7 +108,7 @@ export const onStatsImport = onObjectFinalized(
     if (contentType === "text/csv" || filePath.endsWith(".csv")) {
       rows = parseCSV(buffer.toString("utf-8"));
     } else if (contentType === "application/pdf" || filePath.endsWith(".pdf")) {
-      const parser = new PDFParse({ data: new Uint8Array(buffer) });
+      const parser = new PDFParse({data: new Uint8Array(buffer)});
       const result = await parser.getText();
       rows = parsePDFText(result.text);
     } else {
@@ -148,7 +150,7 @@ export const onStatsImport = onObjectFinalized(
           clubId,
           rawName: row.rawName,
           playerType: "ghost",
-          careerStats: { ...emptyStats(), ...row.stats },
+          careerStats: {...emptyStats(), ...row.stats},
           fuzzyMatchCandidates: [],
           createdAt: now,
           updatedAt: now,

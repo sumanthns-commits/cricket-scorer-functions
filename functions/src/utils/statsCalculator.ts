@@ -1,20 +1,20 @@
-import type { CareerStats } from "../types/index.js";
+import type {CareerStats} from "../types/index.js";
 
 export function computeSkillRating(stats: CareerStats): number {
   const battingAvg =
-    stats.totalDismissals > 0
-      ? stats.totalRuns / stats.totalDismissals
-      : stats.totalRuns;
+    stats.totalDismissals > 0 ?
+      stats.totalRuns / stats.totalDismissals :
+      stats.totalRuns;
 
   const strikeRate =
-    stats.totalBallsFaced > 0
-      ? (stats.totalRuns / stats.totalBallsFaced) * 100
-      : 0;
+    stats.totalBallsFaced > 0 ?
+      (stats.totalRuns / stats.totalBallsFaced) * 100 :
+      0;
 
   const economy =
-    stats.totalBallsBowled > 0
-      ? (stats.totalRunsConceded / stats.totalBallsBowled) * 6
-      : 0;
+    stats.totalBallsBowled > 0 ?
+      (stats.totalRunsConceded / stats.totalBallsBowled) * 6 :
+      0;
 
   const wicketContrib = stats.totalWickets * 20;
   // Dismissals credited to a fielder/keeper, plus net points from non-dismissal

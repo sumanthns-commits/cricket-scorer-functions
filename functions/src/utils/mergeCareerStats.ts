@@ -1,4 +1,4 @@
-import type { CareerStats } from "../types/index.js";
+import type {CareerStats} from "../types/index.js";
 
 // CareerStats plus the two map fields onMatchCompleted writes as dynamic field
 // paths (careerStats.fieldingEventCounts.{label}, careerStats.wagonWheel.{sector})
@@ -30,7 +30,7 @@ function mergeMaps(
   sign: 1 | -1,
 ): Record<string, number> | undefined {
   if (!a && !b) return undefined;
-  const out: Record<string, number> = { ...(a ?? {}) };
+  const out: Record<string, number> = {...(a ?? {})};
   for (const [k, v] of Object.entries(b ?? {})) {
     out[k] = (out[k] ?? 0) + sign * v;
     if (out[k] <= 0) delete out[k];
@@ -39,7 +39,7 @@ function mergeMaps(
 }
 
 function combine(base: StatsLike, delta: StatsLike, sign: 1 | -1): StatsLike {
-  const out = { ...base } as StatsLike;
+  const out = {...base} as StatsLike;
   for (const k of SUM_KEYS) {
     const v = (base[k] ?? 0) + sign * (delta[k] ?? 0);
     out[k] = Math.max(0, v) as never;

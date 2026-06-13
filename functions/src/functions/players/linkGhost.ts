@@ -1,7 +1,7 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import type { CareerStats } from "../../types/index.js";
-import { addCareerStats } from "../../utils/mergeCareerStats.js";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import type {CareerStats} from "../../types/index.js";
+import {addCareerStats} from "../../utils/mergeCareerStats.js";
 
 const REGION = "australia-southeast1";
 
@@ -25,11 +25,11 @@ const emptyStats: CareerStats = {
  * member's per-club stats, marks the ghost as type:'linked', and re-keys any
  * historical playerPerformances so form charts remain continuous.
  */
-export const linkGhost = onCall({ region: REGION }, async (request) => {
+export const linkGhost = onCall({region: REGION}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) throw new HttpsError("unauthenticated", "Must be signed in");
 
-  const { clubId, memberUid, ghostId } = request.data as {
+  const {clubId, memberUid, ghostId} = request.data as {
     clubId: string;
     memberUid: string;
     ghostId: string;
@@ -74,9 +74,9 @@ export const linkGhost = onCall({ region: REGION }, async (request) => {
 
     tx.update(memberRef, {
       careerStats: mergedStats,
-      linkedGhost: { ghostId, displayName: ghost.displayName as string, linkedAt: now },
+      linkedGhost: {ghostId, displayName: ghost.displayName as string, linkedAt: now},
     });
-    tx.update(ghostRef, { type: "linked", linkedTo: memberUid, linkedAt: now });
+    tx.update(ghostRef, {type: "linked", linkedTo: memberUid, linkedAt: now});
   });
 
   // Best-effort: re-key ghost's playerPerformances to the member so form charts stay continuous.
@@ -91,7 +91,7 @@ export const linkGhost = onCall({ region: REGION }, async (request) => {
       for (const p of perfs.docs) {
         batch.set(
           db.collection("playerPerformances").doc(`${p.data().matchId}_${memberUid}`),
-          { ...p.data(), playerId: memberUid },
+          {...p.data(), playerId: memberUid},
         );
         batch.delete(p.ref);
       }
@@ -101,5 +101,5 @@ export const linkGhost = onCall({ region: REGION }, async (request) => {
     // form-chart continuity is best-effort
   }
 
-  return { success: true };
+  return {success: true};
 });

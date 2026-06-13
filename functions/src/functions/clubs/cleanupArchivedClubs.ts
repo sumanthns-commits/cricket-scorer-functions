@@ -1,6 +1,6 @@
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { logger } from "firebase-functions/v2";
+import {onSchedule} from "firebase-functions/v2/scheduler";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {logger} from "firebase-functions/v2";
 
 const REGION = "australia-southeast1";
 const RETENTION_DAYS = 30;
@@ -14,7 +14,7 @@ const RETENTION_DAYS = 30;
  * clears it back to null, so only genuinely-archived clubs match the query.
  */
 export const cleanupArchivedClubs = onSchedule(
-  { schedule: "every 24 hours", region: REGION, timeZone: "Australia/Sydney" },
+  {schedule: "every 24 hours", region: REGION, timeZone: "Australia/Sydney"},
   async () => {
     const db = getFirestore();
     const cutoff = Timestamp.fromMillis(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);

@@ -1,7 +1,7 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import type { CareerStats } from "../../types/index.js";
-import { subtractCareerStats } from "../../utils/mergeCareerStats.js";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import type {CareerStats} from "../../types/index.js";
+import {subtractCareerStats} from "../../utils/mergeCareerStats.js";
 
 const REGION = "australia-southeast1";
 
@@ -12,11 +12,11 @@ const REGION = "australia-southeast1";
  * selection). highScore can't be perfectly un-maxed without rescanning matches,
  * so it's left as-is — an accepted approximation.
  */
-export const unlinkGhost = onCall({ region: REGION }, async (request) => {
+export const unlinkGhost = onCall({region: REGION}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) throw new HttpsError("unauthenticated", "Must be signed in");
 
-  const { clubId, memberUid } = request.data as { clubId: string; memberUid: string };
+  const {clubId, memberUid} = request.data as { clubId: string; memberUid: string };
   if (!clubId || !memberUid) throw new HttpsError("invalid-argument", "Missing fields");
 
   const db = getFirestore();
@@ -47,11 +47,11 @@ export const unlinkGhost = onCall({ region: REGION }, async (request) => {
     const memberStats = member.careerStats as CareerStats;
     const restored = ghostStats ? subtractCareerStats(memberStats, ghostStats) : memberStats;
 
-    tx.update(memberRef, { careerStats: restored, linkedGhost: FieldValue.delete() });
+    tx.update(memberRef, {careerStats: restored, linkedGhost: FieldValue.delete()});
     if (ghostSnap.exists) {
-      tx.update(ghostRef, { type: "ghost", linkedTo: FieldValue.delete(), linkedAt: FieldValue.delete() });
+      tx.update(ghostRef, {type: "ghost", linkedTo: FieldValue.delete(), linkedAt: FieldValue.delete()});
     }
   });
 
-  return { success: true };
+  return {success: true};
 });

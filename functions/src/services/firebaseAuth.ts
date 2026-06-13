@@ -1,6 +1,6 @@
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError } from "firebase-functions/v2/https";
+import {getAuth} from "firebase-admin/auth";
+import {getFirestore} from "firebase-admin/firestore";
+import {HttpsError} from "firebase-functions/v2/https";
 
 export async function verifyIdToken(idToken: string): Promise<string> {
   const decoded = await getAuth().verifyIdToken(idToken);

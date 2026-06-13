@@ -1,7 +1,7 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
-import type { CareerStats } from "../../types/index.js";
-import { addCareerStats } from "../../utils/mergeCareerStats.js";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
+import type {CareerStats} from "../../types/index.js";
+import {addCareerStats} from "../../utils/mergeCareerStats.js";
 
 const REGION = "australia-southeast1";
 
@@ -29,11 +29,11 @@ type Decision = "approve" | "reject";
  * player doc and adds the club to the requester's membership index (both writes
  * the client cannot make itself, hence this runs under the Admin SDK).
  */
-export const resolveJoinRequest = onCall({ region: REGION }, async (request) => {
+export const resolveJoinRequest = onCall({region: REGION}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) throw new HttpsError("unauthenticated", "Must be signed in");
 
-  const { clubId, requesterUid, decision, linkGhostId } = request.data as {
+  const {clubId, requesterUid, decision, linkGhostId} = request.data as {
     clubId: string;
     requesterUid: string;
     decision: Decision;
@@ -73,7 +73,7 @@ export const resolveJoinRequest = onCall({ region: REGION }, async (request) => 
     const now = Timestamp.now();
 
     if (decision === "reject") {
-      tx.update(requestRef, { status: "rejected", resolvedAt: now, resolvedBy: callerUid });
+      tx.update(requestRef, {status: "rejected", resolvedAt: now, resolvedBy: callerUid});
       return;
     }
 
@@ -89,9 +89,9 @@ export const resolveJoinRequest = onCall({ region: REGION }, async (request) => 
 
     // Optional ghost link: validate and prepare the per-club stats merge. ALL
     // reads must precede writes in a transaction, so read the ghost here.
-    const ghostRef = linkGhostId
-      ? db.collection("clubs").doc(clubId).collection("players").doc(linkGhostId)
-      : null;
+    const ghostRef = linkGhostId ?
+      db.collection("clubs").doc(clubId).collection("players").doc(linkGhostId) :
+      null;
     let ghostStats: CareerStats | null = null;
     let ghostName = "";
     if (ghostRef) {
@@ -106,9 +106,9 @@ export const resolveJoinRequest = onCall({ region: REGION }, async (request) => 
 
     const baseStats = (existingPlayer.data()?.careerStats as CareerStats) ?? emptyStats;
     const mergedStats = ghostStats ? addCareerStats(baseStats, ghostStats) : baseStats;
-    const linkedGhost = ghostRef
-      ? { ghostId: linkGhostId, displayName: ghostName, linkedAt: now }
-      : null;
+    const linkedGhost = ghostRef ?
+      {ghostId: linkGhostId, displayName: ghostName, linkedAt: now} :
+      null;
 
     if (!existingPlayer.exists) {
       tx.set(playerRef, {
@@ -123,18 +123,18 @@ export const resolveJoinRequest = onCall({ region: REGION }, async (request) => 
         type: "registered",
         activeClaim: null,
         careerStats: mergedStats,
-        ...(linkedGhost ? { linkedGhost } : {}),
+        ...(linkedGhost ? {linkedGhost} : {}),
       });
     } else if (linkedGhost) {
-      tx.update(playerRef, { careerStats: mergedStats, linkedGhost });
+      tx.update(playerRef, {careerStats: mergedStats, linkedGhost});
     }
 
     if (ghostRef && linkedGhost) {
-      tx.update(ghostRef, { type: "linked", linkedTo: requesterUid, linkedAt: now });
+      tx.update(ghostRef, {type: "linked", linkedTo: requesterUid, linkedAt: now});
     }
 
-    tx.set(membershipRef, { clubIds: FieldValue.arrayUnion(clubId) }, { merge: true });
-    tx.update(requestRef, { status: "approved", resolvedAt: now, resolvedBy: callerUid });
+    tx.set(membershipRef, {clubIds: FieldValue.arrayUnion(clubId)}, {merge: true});
+    tx.update(requestRef, {status: "approved", resolvedAt: now, resolvedBy: callerUid});
   });
 
   // Best-effort (post-commit, non-transactional): re-key the linked ghost's
@@ -152,7 +152,7 @@ export const resolveJoinRequest = onCall({ region: REGION }, async (request) => 
         for (const p of perfs.docs) {
           batch.set(
             db.collection("playerPerformances").doc(`${p.data().matchId}_${requesterUid}`),
-            { ...p.data(), playerId: requesterUid },
+            {...p.data(), playerId: requesterUid},
           );
           batch.delete(p.ref);
         }
@@ -163,5 +163,5 @@ export const resolveJoinRequest = onCall({ region: REGION }, async (request) => 
     }
   }
 
-  return { success: true };
+  return {success: true};
 });

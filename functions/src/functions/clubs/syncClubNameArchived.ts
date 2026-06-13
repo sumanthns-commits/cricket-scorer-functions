@@ -1,5 +1,5 @@
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { getFirestore } from "firebase-admin/firestore";
+import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import {getFirestore} from "firebase-admin/firestore";
 
 const REGION = "australia-southeast1";
 
@@ -17,7 +17,7 @@ const REGION = "australia-southeast1";
  * clubs never clobber each other's reservation.
  */
 export const syncClubNameArchived = onDocumentWritten(
-  { document: "clubs/{clubId}", region: REGION },
+  {document: "clubs/{clubId}", region: REGION},
   async (event) => {
     const after = event.data?.after.data();
     if (!after) return; // deletion → cleanupArchivedClubs removes the registry entry
@@ -31,7 +31,7 @@ export const syncClubNameArchived = onDocumentWritten(
     await Promise.all(
       names.docs
         .filter((n) => n.data().archived !== archived)
-        .map((n) => n.ref.update({ archived })),
+        .map((n) => n.ref.update({archived})),
     );
   },
 );

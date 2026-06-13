@@ -17,8 +17,8 @@
  * GOOGLE_APPLICATION_CREDENTIALS to a service-account key, or run after
  * `gcloud auth application-default login`.
  */
-import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import {initializeApp, applicationDefault} from "firebase-admin/app";
+import {getFirestore} from "firebase-admin/firestore";
 
 const BOWLER_CREDIT = new Set(["bowled", "caught", "lbw", "stumped", "hit-wicket"]);
 const WAGON_SECTORS = 12;
@@ -64,7 +64,7 @@ async function main() {
     process.exit(1);
   }
 
-  initializeApp({ credential: applicationDefault(), projectId });
+  initializeApp({credential: applicationDefault(), projectId});
   const db = getFirestore();
 
   console.log(`Backfill starting for project "${projectId}"${dryRun ? " (DRY RUN)" : ""}`);
@@ -174,8 +174,8 @@ async function main() {
       });
       wagonBatch.set(
         clubDoc.ref.collection("players").doc(playerId),
-        { careerStats: { wagonWheel: wagonMap } },
-        { merge: true },
+        {careerStats: {wagonWheel: wagonMap}},
+        {merge: true},
       );
       wagonPlayers++;
     }

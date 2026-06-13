@@ -1,5 +1,5 @@
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import type { CareerStats } from "../types/index.js";
+import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import type {CareerStats} from "../types/index.js";
 
 export async function applyStatsDelta(
   playerId: string,
@@ -35,6 +35,6 @@ export async function resolveHighScore(
   const snap = await ref.get();
   const current: number = snap.data()?.careerStats?.highScore ?? 0;
   if (newScore > current) {
-    batch.update(ref, { "careerStats.highScore": newScore });
+    batch.update(ref, {"careerStats.highScore": newScore});
   }
 }

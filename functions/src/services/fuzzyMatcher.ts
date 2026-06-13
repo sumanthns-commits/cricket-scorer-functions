@@ -1,6 +1,6 @@
-import { distance } from "fastest-levenshtein";
-import { getFirestore } from "firebase-admin/firestore";
-import type { FuzzyCandidate } from "../types/index.js";
+import {distance} from "fastest-levenshtein";
+import {getFirestore} from "firebase-admin/firestore";
+import type {FuzzyCandidate} from "../types/index.js";
 
 const AUTO_SUGGEST_THRESHOLD = 0.90;
 const ADMIN_QUEUE_THRESHOLD = 0.75;
@@ -64,12 +64,12 @@ export async function findMatches(clubId: string, rawName: string): Promise<Matc
 
     if (score >= AUTO_SUGGEST_THRESHOLD) {
       results.push({
-        candidate: { playerId: doc.id, displayName, score },
+        candidate: {playerId: doc.id, displayName, score},
         tier: "auto",
       });
     } else if (score >= ADMIN_QUEUE_THRESHOLD) {
       results.push({
-        candidate: { playerId: doc.id, displayName, score },
+        candidate: {playerId: doc.id, displayName, score},
         tier: "queue",
       });
     }

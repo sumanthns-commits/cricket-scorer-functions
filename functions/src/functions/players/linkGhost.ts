@@ -25,7 +25,7 @@ const emptyStats: CareerStats = {
  * member's per-club stats, marks the ghost as type:'linked', and re-keys any
  * historical playerPerformances so form charts remain continuous.
  */
-export const linkGhost = onCall({region: REGION}, async (request) => {
+export const linkGhost = onCall({region: REGION, invoker: "public"}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) throw new HttpsError("unauthenticated", "Must be signed in");
 

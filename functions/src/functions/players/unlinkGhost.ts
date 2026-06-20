@@ -12,7 +12,7 @@ const REGION = "australia-southeast1";
  * selection). highScore can't be perfectly un-maxed without rescanning matches,
  * so it's left as-is — an accepted approximation.
  */
-export const unlinkGhost = onCall({region: REGION}, async (request) => {
+export const unlinkGhost = onCall({region: REGION, invoker: "public"}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) throw new HttpsError("unauthenticated", "Must be signed in");
 

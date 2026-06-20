@@ -29,7 +29,7 @@ type Decision = "approve" | "reject";
  * player doc and adds the club to the requester's membership index (both writes
  * the client cannot make itself, hence this runs under the Admin SDK).
  */
-export const resolveJoinRequest = onCall({region: REGION}, async (request) => {
+export const resolveJoinRequest = onCall({region: REGION, invoker: "public"}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) throw new HttpsError("unauthenticated", "Must be signed in");
 

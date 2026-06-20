@@ -53,7 +53,10 @@ service cloud.firestore {
 
     // ── Clubs ──
     match /clubs/{clubId} {
-      allow read: if isMember(clubId);
+      // Any signed-in user can read the club doc (name, description, hemisphere)
+      // so non-members can preview a club before requesting to join.
+      // Subcollections (players, matches, etc.) remain member-only.
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
       allow update: if isAdmin(clubId);
       allow delete: if false;

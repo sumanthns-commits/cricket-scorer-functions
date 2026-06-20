@@ -5,7 +5,7 @@ import {assertClubMember} from "../../services/firebaseAuth.js";
 const REGION = "australia-southeast1";
 
 export const getBowlingInsights = onCall(
-  {region: REGION},
+  {region: REGION, invoker: "public"},
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Must be signed in");

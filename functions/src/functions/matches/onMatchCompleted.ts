@@ -20,7 +20,7 @@ interface BallEntry {
   batsmanId: string;
   extras?: { type: string; runs: number };
   dismissal?: { type: string; fielderId?: string; fielderIds?: string[]; bowlerId?: string };
-  fielding?: { eventId?: string; eventLabel?: string; fielderId?: string };
+  fielding?: { eventId?: string; eventLabel?: string; fielderId?: string; fielderIds?: string[] };
   wagon?: { sector: number; depth: number };
 }
 
@@ -156,12 +156,17 @@ export const onMatchCompleted = onDocumentUpdated(
           }
         }
 
-        // Non-dismissal fielding events (great stop, drop, misfield, …) credited to a fielder.
-        if (ball.fielding?.fielderId && ball.fielding.eventLabel) {
-          const f = pmOf(ball.fielding.fielderId);
+        // Non-dismissal fielding events (great stop, drop, misfield, …) credited to fielder(s).
+        if (ball.fielding?.eventLabel) {
           const label = ball.fielding.eventLabel;
-          f.fieldingEvents[label] = (f.fieldingEvents[label] ?? 0) + 1;
-          f.fieldingPoints += fePoints.get(label) ?? 0;
+          const pts = fePoints.get(label) ?? 0;
+          const ids = ball.fielding.fielderIds ??
+            (ball.fielding.fielderId ? [ball.fielding.fielderId] : []);
+          for (const fid of ids) {
+            const f = pmOf(fid);
+            f.fieldingEvents[label] = (f.fieldingEvents[label] ?? 0) + 1;
+            f.fieldingPoints += pts;
+          }
         }
       }
     }

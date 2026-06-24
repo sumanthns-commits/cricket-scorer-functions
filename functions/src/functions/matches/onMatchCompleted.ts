@@ -145,10 +145,14 @@ export const onMatchCompleted = onDocumentUpdated(
           bat.dismissed = true;
           const type = ball.dismissal.type;
           if (BOWLER_CREDIT.has(type)) bowl.wickets += 1;
-          if (type === "caught" && ball.dismissal.fielderId) {
-            pmOf(ball.dismissal.fielderId).catches += 1;
-          } else if (type === "stumped" && ball.dismissal.fielderId) {
-            pmOf(ball.dismissal.fielderId).stumpings += 1;
+          if (type === "caught") {
+            const ids = ball.dismissal.fielderIds ??
+              (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
+            for (const fid of ids) pmOf(fid).catches += 1;
+          } else if (type === "stumped") {
+            const ids = ball.dismissal.fielderIds ??
+              (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
+            for (const fid of ids) pmOf(fid).stumpings += 1;
           } else if (type === "run-out") {
             const ids = ball.dismissal.fielderIds ??
               (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);

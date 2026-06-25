@@ -39,14 +39,14 @@ interface BallDocNew {
   inningsId: string;
   overNumber: number;
   bowlerId: string;
-  batsmanId: string;          // always the on-striker (facing batter)
+  batsmanId: string; // always the on-striker (facing batter)
   nonStrikerId: string;
   runs: number;
   extras?: { type: string; runs: number };
   dismissal?: {
     type: string;
     nonStrikerOut: boolean;
-    outBatsmanId: string;     // who got out
+    outBatsmanId: string; // who got out
     fielderIds?: string[];
     nextBatsmanId?: string;
   };
@@ -133,7 +133,10 @@ export const onMatchCompleted = onDocumentUpdated(
     const pm = new Map<string, PlayerMatch>();
     const pmOf = (id: string): PlayerMatch => {
       let v = pm.get(id);
-      if (!v) { v = emptyPM(); pm.set(id, v); }
+      if (!v) {
+        v = emptyPM();
+        pm.set(id, v);
+      }
       return v;
     };
     const inningsTotal: Record<string, number> = {};

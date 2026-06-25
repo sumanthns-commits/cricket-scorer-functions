@@ -33,6 +33,28 @@ interface OverDoc {
   balls?: BallEntry[];
 }
 
+// Per-ball doc written by the new scoring architecture.
+interface BallDocNew {
+  seq: number;
+  inningsId: string;
+  overNumber: number;
+  bowlerId: string;
+  batsmanId: string;          // always the on-striker (facing batter)
+  nonStrikerId: string;
+  runs: number;
+  extras?: { type: string; runs: number };
+  dismissal?: {
+    type: string;
+    nonStrikerOut: boolean;
+    outBatsmanId: string;     // who got out
+    fielderIds?: string[];
+    nextBatsmanId?: string;
+  };
+  fielding?: { eventId?: string; eventLabel?: string; fielderIds?: string[] };
+  wagon?: { sector: number; depth: number };
+  isLastBallOfOver: boolean;
+}
+
 interface PlayerMatch {
   battingRuns: number;
   ballsFaced: number;
@@ -102,75 +124,134 @@ export const onMatchCompleted = onDocumentUpdated(
     const db = getFirestore();
     const matchRef = db.collection("clubs").doc(clubId).collection("matches").doc(matchId);
 
-    const oversSnap = await matchRef.collection("overs").get();
-    const overs = oversSnap.docs
-      .map((d) => d.data() as OverDoc)
-      .sort((a, b) => a.overNumber - b.overNumber);
+    // Support both storage formats:
+    // - New: one doc per ball in the 'balls' subcollection
+    // - Old: balls[] array per over in the 'overs' subcollection
+    const ballsSnap = await matchRef.collection("balls").get();
+    const useNewFormat = !ballsSnap.empty;
 
     const pm = new Map<string, PlayerMatch>();
     const pmOf = (id: string): PlayerMatch => {
       let v = pm.get(id);
-      if (!v) {
-        v = emptyPM(); pm.set(id, v);
-      }
+      if (!v) { v = emptyPM(); pm.set(id, v); }
       return v;
     };
     const inningsTotal: Record<string, number> = {};
 
-    for (const over of overs) {
-      const innings = over.inningsId ?? "innings-1";
-      for (const ball of over.balls ?? []) {
+    function processBall(
+      ball: BallEntry,
+      bowlerId: string,
+      inningsId: string,
+      wagon?: { sector: number; depth: number },
+    ) {
+      const innings = inningsId ?? "innings-1";
+      const isWideNoBall = ball.extras?.type === "wide" || ball.extras?.type === "no-ball";
+      const isLegal = !isWideNoBall;
+      const extraRuns = ball.extras?.runs ?? 0;
+
+      inningsTotal[innings] = (inningsTotal[innings] ?? 0) + ball.runs + extraRuns;
+
+      const bat = pmOf(ball.batsmanId);
+      bat.battingRuns += ball.runs;
+      if (isLegal) bat.ballsFaced += 1;
+
+      const sector = wagon?.sector ?? ball.wagon?.sector;
+      if (typeof sector === "number" && sector >= 0 && sector < WAGON_SECTORS) {
+        bat.wagon[sector] += ball.runs;
+      }
+
+      const bowl = pmOf(bowlerId);
+      if (isLegal) bowl.ballsBowled += 1;
+      bowl.runsConceded += ball.runs + (isWideNoBall ? extraRuns : 0);
+
+      if (ball.dismissal) {
+        bat.dismissed = true;
+        const type = ball.dismissal.type;
+        if (BOWLER_CREDIT.has(type)) bowl.wickets += 1;
+        if (type === "caught") {
+          const ids = ball.dismissal.fielderIds ?? (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
+          for (const fid of ids) pmOf(fid).catches += 1;
+        } else if (type === "stumped") {
+          const ids = ball.dismissal.fielderIds ?? (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
+          for (const fid of ids) pmOf(fid).stumpings += 1;
+        } else if (type === "run-out") {
+          const ids = ball.dismissal.fielderIds ?? (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
+          for (const fid of ids) pmOf(fid).runOuts += 1;
+        }
+      }
+
+      if (ball.fielding?.eventLabel) {
+        const label = ball.fielding.eventLabel;
+        const pts = fePoints.get(label) ?? 0;
+        const ids = ball.fielding.fielderIds ?? (ball.fielding.fielderId ? [ball.fielding.fielderId] : []);
+        for (const fid of ids) {
+          const f = pmOf(fid);
+          f.fieldingEvents[label] = (f.fieldingEvents[label] ?? 0) + 1;
+          f.fieldingPoints += pts;
+        }
+      }
+    }
+
+    if (useNewFormat) {
+      const ballDocs = ballsSnap.docs
+        .map((d) => d.data() as BallDocNew)
+        .sort((a, b) => a.seq - b.seq);
+      for (const ball of ballDocs) {
+        const innings = ball.inningsId ?? "innings-1";
         const isWideNoBall = ball.extras?.type === "wide" || ball.extras?.type === "no-ball";
         const isLegal = !isWideNoBall;
         const extraRuns = ball.extras?.runs ?? 0;
 
         inningsTotal[innings] = (inningsTotal[innings] ?? 0) + ball.runs + extraRuns;
 
+        // Batting: runs and balls credited to the facing batter (batsmanId)
         const bat = pmOf(ball.batsmanId);
         bat.battingRuns += ball.runs;
         if (isLegal) bat.ballsFaced += 1;
-
-        // Shot placement: credit runs off the bat to the wagon-wheel sector.
         const sector = ball.wagon?.sector;
         if (typeof sector === "number" && sector >= 0 && sector < WAGON_SECTORS) {
           bat.wagon[sector] += ball.runs;
         }
 
-        const bowl = pmOf(over.bowlerId);
+        // Bowler
+        const bowl = pmOf(ball.bowlerId);
         if (isLegal) bowl.ballsBowled += 1;
-        // Bowler is charged off-the-bat runs + wides/no-balls (not byes/leg-byes).
         bowl.runsConceded += ball.runs + (isWideNoBall ? extraRuns : 0);
 
+        // Dismissal attributed to outBatsmanId (may differ from batsmanId on non-striker run-outs)
         if (ball.dismissal) {
-          bat.dismissed = true;
+          pmOf(ball.dismissal.outBatsmanId).dismissed = true;
           const type = ball.dismissal.type;
           if (BOWLER_CREDIT.has(type)) bowl.wickets += 1;
+          const fielderIds = ball.dismissal.fielderIds ?? [];
           if (type === "caught") {
-            const ids = ball.dismissal.fielderIds ??
-              (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
-            for (const fid of ids) pmOf(fid).catches += 1;
+            for (const fid of fielderIds) pmOf(fid).catches += 1;
           } else if (type === "stumped") {
-            const ids = ball.dismissal.fielderIds ??
-              (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
-            for (const fid of ids) pmOf(fid).stumpings += 1;
+            for (const fid of fielderIds) pmOf(fid).stumpings += 1;
           } else if (type === "run-out") {
-            const ids = ball.dismissal.fielderIds ??
-              (ball.dismissal.fielderId ? [ball.dismissal.fielderId] : []);
-            for (const fid of ids) pmOf(fid).runOuts += 1;
+            for (const fid of fielderIds) pmOf(fid).runOuts += 1;
           }
         }
 
-        // Non-dismissal fielding events (great stop, drop, misfield, …) credited to fielder(s).
+        // Non-dismissal fielding events
         if (ball.fielding?.eventLabel) {
           const label = ball.fielding.eventLabel;
           const pts = fePoints.get(label) ?? 0;
-          const ids = ball.fielding.fielderIds ??
-            (ball.fielding.fielderId ? [ball.fielding.fielderId] : []);
-          for (const fid of ids) {
+          for (const fid of ball.fielding.fielderIds ?? []) {
             const f = pmOf(fid);
             f.fieldingEvents[label] = (f.fieldingEvents[label] ?? 0) + 1;
             f.fieldingPoints += pts;
           }
+        }
+      }
+    } else {
+      const oversSnap = await matchRef.collection("overs").get();
+      const overs = oversSnap.docs
+        .map((d) => d.data() as OverDoc)
+        .sort((a, b) => a.overNumber - b.overNumber);
+      for (const over of overs) {
+        for (const ball of over.balls ?? []) {
+          processBall(ball, over.bowlerId, over.inningsId ?? "innings-1");
         }
       }
     }

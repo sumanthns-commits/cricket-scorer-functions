@@ -87,8 +87,21 @@ async function pruneInvalidTokens(
 ): Promise<void> {
   await Promise.all(
     tickets.map(async (ticket, i) => {
-      if (ticket.status !== "error" || ticket.details?.error !== "DeviceNotRegistered") return;
+      if (ticket.status !== "error") return;
       const recipient = chunkRecipients[i];
+      if (ticket.details?.error !== "DeviceNotRegistered") {
+        // Every other error (InvalidCredentials — missing/misconfigured
+        // APNs or FCM push credentials on Expo's side, MessageRateExceeded,
+        // MessageTooBig, ProviderError, DeveloperError, ExpoError) was
+        // previously swallowed here with zero trace. Log it so a delivery
+        // failure shows up in Cloud Functions logs instead of just
+        // silently not arriving on-device.
+        console.error(
+          "[pushNotifications] delivery error",
+          {uid: recipient?.uid, error: ticket.details?.error, message: ticket.message},
+        );
+        return;
+      }
       const token = ticket.details?.expoPushToken ?? recipient?.token;
       if (!recipient || !token) return;
       await db

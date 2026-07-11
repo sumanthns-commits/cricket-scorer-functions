@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {CareerStats} from "../../types/index.js";
 import {addCareerStats} from "../../utils/mergeCareerStats.js";
+import {sendPushToUsers} from "../../services/pushNotifications.js";
 
 const REGION = "australia-southeast1";
 
@@ -160,6 +161,26 @@ export const resolveJoinRequest = onCall({region: REGION, invoker: "public"}, as
       }
     } catch {
       // ignore — form-chart continuity is best-effort
+    }
+  }
+
+  // Best-effort (post-commit): notify the requester their request was
+  // approved, with a link to the club. Kept as its own try/catch, separate
+  // from the ghost-performance-rekey block above, so a notification failure
+  // can never be conflated with that unrelated best-effort step. Always
+  // sent — not gated by notificationPrefs.matchNotifications.
+  if (decision === "approve") {
+    try {
+      const clubSnap = await db.collection("clubs").doc(clubId).get();
+      const clubName = (clubSnap.data()?.name as string | undefined) ?? "your club";
+      await sendPushToUsers({
+        uids: [requesterUid],
+        title: "You're in!",
+        body: `Your request to join ${clubName} was approved`,
+        data: {type: "join_approved", clubId},
+      });
+    } catch (err) {
+      console.error("[resolveJoinRequest] approval notification failed", err);
     }
   }
 

@@ -1,5 +1,6 @@
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {notifyRegisteredMembers} from "../../services/pushNotifications.js";
 
 const REGION = "australia-southeast1";
 
@@ -104,6 +105,11 @@ export const onMatchCompleted = onDocumentUpdated(
     // homeTeam == teamA, awayTeam == teamB (see winner logic below).
     const homeTeam: string = after.homeTeam ?? "Home";
     const awayTeam: string = after.awayTeam ?? "Away";
+    // Captured as its own const (rather than read from `after` again) so
+    // the notification closure below doesn't need `after`'s narrowing —
+    // TS discards a captured variable's earlier type-guard narrowing when
+    // it's referenced inside a nested function declaration.
+    const scorerId: string | undefined = after.scorerId;
     const matchDate: FirebaseFirestore.Timestamp | undefined = after.date;
     const captainA: string | undefined = after.captainA ?? undefined;
     const captainB: string | undefined = after.captainB ?? undefined;
@@ -273,9 +279,29 @@ export const onMatchCompleted = onDocumentUpdated(
     const resultForTeam = (team: "A" | "B"): "win" | "loss" | "tie" =>
       winnerTeam === "tie" ? "tie" : winnerTeam === team ? "win" : "loss";
 
+    // Best-effort (post-commit): notify registered members the match has
+    // finished, minus the scorer. Never let a notification failure affect
+    // the already-committed stats aggregation. Called from both exit paths
+    // below — the empty-squad early return still represents a real
+    // completed match that members should hear about.
+    async function sendFinishedNotification(): Promise<void> {
+      try {
+        await notifyRegisteredMembers({
+          clubId,
+          excludeUid: scorerId,
+          title: "Match finished",
+          body: `${homeTeam} vs ${awayTeam} — full scorecard is ready`,
+          data: {type: "match_finished", clubId, matchId},
+        });
+      } catch (err) {
+        console.error("[onMatchCompleted] notification failed", err);
+      }
+    }
+
     const played = Array.from(new Set([...teamA, ...teamB]));
     if (played.length === 0) {
       await matchRef.update({winnerTeam, statsAggregated: true});
+      await sendFinishedNotification();
       return;
     }
 
@@ -394,5 +420,6 @@ export const onMatchCompleted = onDocumentUpdated(
 
     batch.update(matchRef, {winnerTeam, statsAggregated: true});
     await batch.commit();
+    await sendFinishedNotification();
   },
 );

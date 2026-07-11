@@ -63,3 +63,12 @@ export interface ApiKey {
   lastUsedAt?: FirebaseFirestore.Timestamp;
   createdAt: FirebaseFirestore.Timestamp;
 }
+
+// Tap-through payload for a push notification — shared shape with the app
+// repo's identically-named type (src/types/index.ts), consumed by
+// notificationNavigation.ts on the client.
+export type PushNotificationData =
+  | { type: "join_request"; clubId: string }
+  | { type: "join_approved"; clubId: string }
+  | { type: "match_live"; clubId: string; matchId: string }
+  | { type: "match_finished"; clubId: string; matchId: string };

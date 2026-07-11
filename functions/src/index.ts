@@ -6,9 +6,12 @@ setGlobalOptions({region: "australia-southeast1", maxInstances: 10});
 
 export {onStatsImport} from "./functions/imports/onStatsImport.js";
 
+export {onMatchAbandoned} from "./functions/matches/onMatchAbandoned.js";
 export {onMatchCompleted} from "./functions/matches/onMatchCompleted.js";
+export {onMatchLive} from "./functions/matches/onMatchLive.js";
 
 export {cleanupArchivedClubs} from "./functions/clubs/cleanupArchivedClubs.js";
+export {onJoinRequestCreated} from "./functions/clubs/onJoinRequestCreated.js";
 export {resolveJoinRequest} from "./functions/clubs/resolveJoinRequest.js";
 export {syncClubNameArchived} from "./functions/clubs/syncClubNameArchived.js";
 

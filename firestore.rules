@@ -11,8 +11,12 @@ service cloud.firestore {
       return request.auth != null;
     }
     function isMember(clubId) {
+      // Existence alone isn't enough: a departed member's player doc is kept
+      // around (type flips to 'ghost', never deleted) so their stats and
+      // rejoin path survive — without the type check they'd silently retain
+      // read (and, via isAdmin, write) access to the club forever.
       return isSignedIn()
-        && exists(/databases/$(database)/documents/clubs/$(clubId)/players/$(request.auth.uid));
+        && get(/databases/$(database)/documents/clubs/$(clubId)/players/$(request.auth.uid)).data.type == 'registered';
     }
     function isAdmin(clubId) {
       return isMember(clubId)

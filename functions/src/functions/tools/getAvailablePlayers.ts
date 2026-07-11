@@ -36,10 +36,12 @@ export const getAvailablePlayers = onCall(
       .get();
 
     // Exclude linked ghosts — they've been absorbed into a registered member,
-    // so surfacing them would let the AI pick the same person twice.
+    // so surfacing them would let the AI pick the same person twice. Exclude
+    // departed (left/removed) members from team selection too.
     // When a matchId is provided, restrict to that match's squad.
     return snap.docs
       .filter((d) => d.data().type !== "linked")
+      .filter((d) => d.data().status !== "departed")
       .filter((d) => !squadIds || squadIds.has(d.id))
       .map((d) => ({id: d.id, ...d.data()}));
   }

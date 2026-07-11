@@ -87,10 +87,24 @@ export const resolveJoinRequest = onCall({region: REGION, invoker: "public"}, as
     const photoURL = (user.photoURL as string) ?? (reqData.photoURL as string) ?? null;
 
     const existingPlayer = await tx.get(playerRef);
+    const existingData = existingPlayer.data();
+    // Rejoining with the SAME uid they left/were removed with — their player
+    // doc id is always their own uid (see the create branch below), so a
+    // departed member's old doc is still sitting right here, stats intact.
+    // Nothing to merge; mutually exclusive with linkGhostId (which would
+    // otherwise try to write this same doc twice in one transaction).
+    const isSelfReactivation = existingPlayer.exists && existingData?.type === "ghost";
+
+    if (isSelfReactivation && linkGhostId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "This player already has a profile here — approve without picking a ghost to restore it.",
+      );
+    }
 
     // Optional ghost link: validate and prepare the per-club stats merge. ALL
     // reads must precede writes in a transaction, so read the ghost here.
-    const ghostRef = linkGhostId ?
+    const ghostRef = (linkGhostId && !isSelfReactivation) ?
       db.collection("clubs").doc(clubId).collection("players").doc(linkGhostId) :
       null;
     let ghostStats: CareerStats | null = null;
@@ -98,20 +112,35 @@ export const resolveJoinRequest = onCall({region: REGION, invoker: "public"}, as
     if (ghostRef) {
       const ghostSnap = await tx.get(ghostRef);
       const ghost = ghostSnap.data();
-      if (!ghostSnap.exists || ghost?.type !== "ghost") {
+      if (!ghostSnap.exists || ghost?.type !== "ghost" || ghost?.status === "departed") {
         throw new HttpsError("failed-precondition", "Ghost player not available to link");
       }
       ghostStats = (ghost.careerStats as CareerStats) ?? emptyStats;
       ghostName = (ghost.displayName as string) ?? "";
     }
 
-    const baseStats = (existingPlayer.data()?.careerStats as CareerStats) ?? emptyStats;
+    const baseStats = (existingData?.careerStats as CareerStats) ?? emptyStats;
     const mergedStats = ghostStats ? addCareerStats(baseStats, ghostStats) : baseStats;
     const linkedGhost = ghostRef ?
       {ghostId: linkGhostId, displayName: ghostName, linkedAt: now} :
       null;
 
-    if (!existingPlayer.exists) {
+    if (isSelfReactivation) {
+      // Same doc, same stats — nothing to merge, just flip the status back.
+      // activeClaim reset defensively for consistency with the create-new
+      // branch below (claim lifecycle is unimplemented today, so this is
+      // currently inert, but keeps this branch correct once it isn't).
+      tx.update(playerRef, {
+        type: "registered",
+        status: FieldValue.delete(),
+        departedAt: FieldValue.delete(),
+        activeClaim: null,
+        role: "member",
+        displayName,
+        email,
+        photoURL,
+      });
+    } else if (!existingPlayer.exists) {
       tx.set(playerRef, {
         id: requesterUid,
         clubId,

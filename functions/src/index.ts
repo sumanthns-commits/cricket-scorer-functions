@@ -11,7 +11,9 @@ export {onMatchCompleted} from "./functions/matches/onMatchCompleted.js";
 export {onMatchLive} from "./functions/matches/onMatchLive.js";
 
 export {cleanupArchivedClubs} from "./functions/clubs/cleanupArchivedClubs.js";
+export {leaveClub} from "./functions/clubs/leaveClub.js";
 export {onJoinRequestCreated} from "./functions/clubs/onJoinRequestCreated.js";
+export {removeMember} from "./functions/clubs/removeMember.js";
 export {resolveJoinRequest} from "./functions/clubs/resolveJoinRequest.js";
 export {syncClubNameArchived} from "./functions/clubs/syncClubNameArchived.js";
 

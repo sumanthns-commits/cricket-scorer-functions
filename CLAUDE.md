@@ -15,7 +15,8 @@ functions/src/
   functions/
     matches/   ← onMatchCompleted, onMatchLive, onMatchAbandoned (Firestore triggers)
     players/   ← linkGhost, unlinkGhost, mirrorPlayerStats
-    clubs/     ← resolveJoinRequest, onJoinRequestCreated, syncClubNameArchived, cleanupArchivedClubs
+    clubs/     ← resolveJoinRequest, onJoinRequestCreated, syncClubNameArchived, cleanupArchivedClubs,
+                 leaveClub, removeMember
     imports/   ← onStatsImport (Storage trigger)
     tools/     ← AI data tools (one callable per file)
     apiKeys/   ← generateApiKey
@@ -26,6 +27,7 @@ functions/src/
     firebaseAuth.ts     ← assertClubMember, assertAdmin helpers
     mergeCareerStats.ts ← addCareerStats / subtractCareerStats (exact inverses)
     pushNotifications.ts ← sendPushToUsers / notifyRegisteredMembers (Expo push, chunked + token pruning)
+    membership.ts       ← deactivatePlayer (leave/remove — shared by leaveClub, removeMember)
   utils/
     statsCalculator.ts  ← computeSkillRating
   types/index.ts        ← NOT a faithful mirror of the app repo's types (e.g. `Match` here uses
@@ -67,7 +69,9 @@ functions/src/
 **Player / ghost management**
 - `linkGhost` — admin merges a ghost into a registered member; calls `addCareerStats`, sets `type:'linked'`
 - `unlinkGhost` — reverses the above; calls `subtractCareerStats`, restores `type:'ghost'`
-- `resolveJoinRequest` — approves/rejects a club join request; optionally links a ghost (`linkGhostId`); on approval, also sends the "join approved" push notification to the requester
+- `resolveJoinRequest` — approves/rejects a club join request; optionally links a ghost (`linkGhostId`); on approval, also sends the "join approved" push notification to the requester; **also auto-reactivates a departed member's own doc on approval** (same uid rejoining — see "Leave club / remove member" below)
+- `leaveClub` — self-service: `type:'registered'` → `type:'ghost', status:'departed'`, careerStats untouched. Transactional last-admin guard.
+- `removeMember` — admin-only equivalent of `leaveClub` for a different member. Same last-admin guard (closes a concurrent-removal race, not just the single-caller case).
 - `generateApiKey` — creates a SHA-256 hashed API key for a club
 
 **AI data tools** (all enforce `assertClubMember` before any read; return raw data only)
@@ -114,6 +118,39 @@ Admin flow via `resolveJoinRequest({ linkGhostId })` or direct `linkGhost` calla
 3. `mirrorPlayerStats` trigger propagates merged stats to `publicPlayerStats`
 4. Reversible: `unlinkGhost` → `subtractCareerStats`, restores `type:'ghost'`
 
+## Leave club / remove member (IMPLEMENTED)
+`services/membership.ts`'s `deactivatePlayer(db, clubId, playerId, tx?)` is the shared
+end-state for both `leaveClub` and `removeMember`: `type:'registered'` → `type:'ghost'`,
+`status:'departed'`, `departedAt` server timestamp, `role` reset to `'member'`.
+**`careerStats` is never read or written** — the same doc (id = the player's uid) just goes
+dormant, so a same-uid rejoin has the exact stats waiting, untouched.
+
+- Both callables run their last-admin guard **inside** the transaction that also does the
+  write (query: `type=='registered' && role=='admin'`, block if count would hit zero) — not
+  as a separate pre-check, since that would leave a TOCTOU window for two admins
+  leaving/removing concurrently. Firestore's transaction conflict detection forces a retry
+  when the admin-count query's result set changed since the read, so the second transaction
+  correctly sees the post-write count and fails the guard.
+- `removeMember` additionally rejects `playerId === callerUid` (must use `leaveClub`) and
+  guards the SAME concurrent-race case even though caller≠target — two different admins
+  removing each other simultaneously would otherwise each independently pass their own
+  "am I admin" check.
+- `resolveJoinRequest`'s approve path detects `existingPlayer.data().type === 'ghost'` at the
+  requester's own doc (doc id is always their uid) and reactivates it directly — `status`/
+  `departedAt` cleared via `FieldValue.delete()`, `careerStats` left completely untouched, no
+  `linkGhostId` accepted alongside (rejected with a clear error — the ghost read/merge path is
+  skipped entirely for this branch, since merging the same doc into itself would double-write
+  it within one transaction).
+- `getClubGhosts` (app repo), `linkGhost.ts` (server-side, defense-in-depth) both reject
+  `status:'departed'` ghosts — a departed member's doc is `type:'ghost'` like any other ghost,
+  so without this a departed member could be picked from an admin's "link to member" picker
+  and merged into someone ELSE, corrupting stats and permanently blocking their own
+  reactivation (the self-reactivation path above only fires for an *unlinked* ghost sitting at
+  the requester's own uid).
+- `firestore.rules`' `isMember(clubId)` requires `type == 'registered'` (not just doc
+  existence) — a departed member's doc is never deleted, so existence-only would let them
+  silently keep read (and, via `isAdmin`, write) access to the club forever.
+
 ## Self-service claim lifecycle (PLANNED — NOT implemented)
 No claim functions exist. `statsResolver` only previews what a claim snapshot would show.
 The `claims/` folder does not exist — do not create claim functions without explicit instruction.
@@ -151,4 +188,4 @@ event could in rare cases send the same push twice.
 ```
 cd functions && firebase deploy --only functions
 ```
-Lint + build (`tsc`) run as predeploy scripts. All 20 functions deploy together.
+Lint + build (`tsc`) run as predeploy scripts. All 22 functions deploy together.

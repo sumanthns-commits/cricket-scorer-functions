@@ -63,7 +63,10 @@ export const linkGhost = onCall({region: REGION, invoker: "public"}, async (requ
     }
 
     const ghost = ghostSnap.data();
-    if (!ghostSnap.exists || ghost?.type !== "ghost") {
+    if (!ghostSnap.exists || ghost?.type !== "ghost" || ghost?.status === "departed") {
+      // A departed member's doc is a 'ghost' too, but merging it into a
+      // DIFFERENT member here would be unrecoverable — resolveJoinRequest's
+      // self-reactivation path is the only correct way to restore it.
       throw new HttpsError("failed-precondition", "Ghost player not available to link");
     }
 

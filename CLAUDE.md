@@ -13,9 +13,9 @@ Companion app repo: `../cricket-scorer-app`
 ## Folder structure
 functions/src/
   functions/
-    matches/   ← onMatchCompleted (Firestore trigger)
+    matches/   ← onMatchCompleted, onMatchLive, onMatchAbandoned (Firestore triggers)
     players/   ← linkGhost, unlinkGhost, mirrorPlayerStats
-    clubs/     ← resolveJoinRequest, syncClubNameArchived, cleanupArchivedClubs
+    clubs/     ← resolveJoinRequest, onJoinRequestCreated, syncClubNameArchived, cleanupArchivedClubs
     imports/   ← onStatsImport (Storage trigger)
     tools/     ← AI data tools (one callable per file)
     apiKeys/   ← generateApiKey
@@ -25,9 +25,14 @@ functions/src/
     apiKeyAuth.ts       ← SHA-256 key verification with in-memory cache
     firebaseAuth.ts     ← assertClubMember, assertAdmin helpers
     mergeCareerStats.ts ← addCareerStats / subtractCareerStats (exact inverses)
+    pushNotifications.ts ← sendPushToUsers / notifyRegisteredMembers (Expo push, chunked + token pruning)
   utils/
     statsCalculator.ts  ← computeSkillRating
-  types/index.ts        ← mirrors app repo types
+  types/index.ts        ← NOT a faithful mirror of the app repo's types (e.g. `Match` here uses
+                           homeTeamId/awayTeamId and lacks scorerId) — existing code reads
+                           Firestore data via untyped `snap.data()` + inline casts rather than this
+                           interface. Only `PushNotificationData` here is a genuine, kept-in-sync
+                           shared contract with the app repo's identically-named type.
 
 ## Absolute rules
 - ALL functions deploy to `australia-southeast1` (REGION constant)
@@ -41,9 +46,12 @@ functions/src/
 ### Firestore triggers
 | Function | Trigger path | What it does |
 |---|---|---|
-| `onMatchCompleted` | `clubs/{clubId}/matches/{matchId}` updated | When status → completed/abandoned: aggregates career stats (batting, bowling, fielding), wagon wheel, fieldingPoints from all overs. Writes to `clubs/{clubId}/players/{playerId}.careerStats` via batch. |
+| `onMatchCompleted` | `clubs/{clubId}/matches/{matchId}` updated | When status → **completed only** (never fires for 'abandoned' — see `onMatchAbandoned`): aggregates career stats (batting, bowling, fielding), wagon wheel, fieldingPoints from all overs. Writes to `clubs/{clubId}/players/{playerId}.careerStats` via batch, then sends the "match finished" push notification (from both its normal exit and its empty-squad early-return path). |
+| `onMatchLive` | `clubs/{clubId}/matches/{matchId}` written | When status transitions to 'live' (create-as-live or 'scheduled'→'live' update — guarded so it never re-fires on a later write to an already-live match): sends the "match started" push notification to registered members, minus the scorer. |
+| `onMatchAbandoned` | `clubs/{clubId}/matches/{matchId}` updated | When status transitions to 'abandoned': sends the "match finished" push notification to registered members, minus the scorer. No stats logic — kept separate from `onMatchCompleted` on purpose. |
 | `mirrorPlayerStats` | `clubs/{clubId}/players/{playerId}` written | Copies public-safe fields to `publicPlayerStats/{uid}_{clubId}` so any signed-in user can read stats without club membership. |
 | `syncClubNameArchived` | `clubs/{clubId}` written | Propagates club name / archived flag changes to member player docs. |
+| `onJoinRequestCreated` | `clubs/{clubId}/joinRequests/{requesterUid}` created | Sends a push notification to every admin of the club (per-club `role==='admin'`, not a global admins list). |
 
 ### Storage trigger
 | Function | Trigger | What it does |
@@ -59,7 +67,7 @@ functions/src/
 **Player / ghost management**
 - `linkGhost` — admin merges a ghost into a registered member; calls `addCareerStats`, sets `type:'linked'`
 - `unlinkGhost` — reverses the above; calls `subtractCareerStats`, restores `type:'ghost'`
-- `resolveJoinRequest` — approves/rejects a club join request; optionally links a ghost (`linkGhostId`)
+- `resolveJoinRequest` — approves/rejects a club join request; optionally links a ghost (`linkGhostId`); on approval, also sends the "join approved" push notification to the requester
 - `generateApiKey` — creates a SHA-256 hashed API key for a club
 
 **AI data tools** (all enforce `assertClubMember` before any read; return raw data only)
@@ -124,8 +132,23 @@ Path: `publicPlayerStats/{uid}_{clubId}`
 Any authenticated user can read — used by non-members viewing scorecards/profiles.
 Written by `mirrorPlayerStats` trigger on every `clubs/{clubId}/players/{uid}` write.
 
+## Push notifications
+`services/pushNotifications.ts` — `sendPushToUsers` (chunked Expo sends via `expo-server-sdk`
+**v5**, deliberately not v6+, which is ESM-only and would break this repo's CommonJS output
+since `functions/package.json` has no `"type":"module"`; per-chunk ticket pruning removes
+`DeviceNotRegistered` tokens from the owning `users/{uid}.expoPushTokens`) and
+`notifyRegisteredMembers` (queries `clubs/{clubId}/players` where `type=='registered'`,
+delegates to `sendPushToUsers` with `requireMatchPref: true`).
+
+Only match-live/match-finished sends pass `requireMatchPref: true` (respects
+`users/{uid}.notificationPrefs.matchNotifications`, default on) — join-request/approval
+sends never gate on it, always sending regardless. All four trigger functions wrap their
+send in try/catch and never let a notification failure affect already-committed data;
+none currently de-dup against Cloud Functions' at-least-once delivery, so a redelivered
+event could in rare cases send the same push twice.
+
 ## Deploy
 ```
 cd functions && firebase deploy --only functions
 ```
-Lint + build (`tsc`) run as predeploy scripts. All 17 functions deploy together.
+Lint + build (`tsc`) run as predeploy scripts. All 20 functions deploy together.

@@ -17,6 +17,7 @@ functions/src/
     players/   ← linkGhost, unlinkGhost, mirrorPlayerStats
     clubs/     ← resolveJoinRequest, onJoinRequestCreated, syncClubNameArchived, cleanupArchivedClubs,
                  leaveClub, removeMember
+    account/   ← deleteAccount
     imports/   ← onStatsImport (Storage trigger)
     tools/     ← AI data tools (one callable per file)
     apiKeys/   ← generateApiKey
@@ -73,6 +74,12 @@ functions/src/
 - `leaveClub` — self-service: `type:'registered'` → `type:'ghost', status:'departed'`, careerStats untouched. Transactional last-admin guard.
 - `removeMember` — admin-only equivalent of `leaveClub` for a different member. Same last-admin guard (closes a concurrent-removal race, not just the single-caller case).
 - `generateApiKey` — creates a SHA-256 hashed API key for a club
+
+**Account**
+- `deleteAccount` — self-service account deletion; ghosts the caller's player doc in every
+  club they belong to (last-admin guard per club, whole transaction aborts if any club
+  fails it), erases `users/{uid}` + `userMemberships/{uid}`, then deletes the Firebase Auth
+  user — see "Account deletion" below
 
 **AI data tools** (all enforce `assertClubMember` before any read; return raw data only)
 - `getAvailablePlayers` — squad minus linked ghosts
@@ -151,6 +158,32 @@ dormant, so a same-uid rejoin has the exact stats waiting, untouched.
   existence) — a departed member's doc is never deleted, so existence-only would let them
   silently keep read (and, via `isAdmin`, write) access to the club forever.
 
+## Account deletion (IMPLEMENTED)
+`deleteAccount` is the account-level counterpart to leaveClub/removeMember — same end state
+per club (`type:'registered'` → `type:'ghost'`, `status:'departed'`, careerStats untouched)
+— but additionally erases `users/{uid}`, `userMemberships/{uid}`, and the Firebase Auth
+user. Added for App Store Guideline 5.1.1(v) (apps that support account creation must
+support account deletion).
+
+- Iterates every clubId in `userMemberships/{uid}.clubIds` inside ONE transaction: all
+  reads (player doc + last-admin query where applicable) across every club happen first,
+  then the last-admin guard is checked for ALL clubs before ANY write — a guard failure in
+  a single club aborts the whole transaction, so the account is never left partially
+  deleted (ghosted in some clubs, still registered in others).
+- Player-doc fields are set inline here rather than via `services/membership.ts`'s
+  `deactivatePlayer` — that helper also arrayRemoves the club from `userMemberships`, which
+  is moot when the whole `userMemberships` doc is deleted a moment later in the same
+  transaction.
+- `publicPlayerStats` mirrors are NOT explicitly deleted here — `mirrorPlayerStats` already
+  deletes the mirror whenever a player doc's `type` leaves `'registered'`, so ghosting the
+  player doc cleans them up indirectly, same as `leaveClub`/`removeMember`.
+- The Firebase Auth user is deleted (`getAuth().deleteUser(uid)`) only AFTER the Firestore
+  transaction commits — if Firestore cleanup fails, the Auth account survives so the user
+  can sign back in and retry, rather than being locked out with orphaned data.
+- Client (app repo): `authService.ts`'s `deleteAccount()` unregisters the push token first
+  (it writes to `users/{uid}`, which won't exist once the callable returns), calls the
+  callable, then signs out locally. UI: `Profile/index.tsx`'s "Delete Account" button.
+
 ## Self-service claim lifecycle (PLANNED — NOT implemented)
 No claim functions exist. `statsResolver` only previews what a claim snapshot would show.
 The `claims/` folder does not exist — do not create claim functions without explicit instruction.
@@ -188,4 +221,4 @@ event could in rare cases send the same push twice.
 ```
 cd functions && firebase deploy --only functions
 ```
-Lint + build (`tsc`) run as predeploy scripts. All 22 functions deploy together.
+Lint + build (`tsc`) run as predeploy scripts. All 23 functions deploy together.

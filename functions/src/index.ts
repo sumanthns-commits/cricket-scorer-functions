@@ -31,3 +31,5 @@ export {getHeadToHead} from "./functions/tools/getHeadToHead.js";
 export {getMatchContext} from "./functions/tools/getMatchContext.js";
 
 export {generateApiKey} from "./functions/apiKeys/generateApiKey.js";
+
+export {deleteAccount} from "./functions/account/deleteAccount.js";

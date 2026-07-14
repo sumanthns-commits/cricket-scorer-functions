@@ -43,9 +43,9 @@ export const deleteAccount = onCall({region: REGION, invoker: "public"}, async (
         const playersRef = db.collection("clubs").doc(clubId).collection("players");
         const playerSnap = await tx.get(playersRef.doc(uid));
         const player = playerSnap.data();
-        const adminsSnap = player?.role === "admin"
-          ? await tx.get(playersRef.where("type", "==", "registered").where("role", "==", "admin"))
-          : null;
+        const adminsSnap = player?.role === "admin" ?
+          await tx.get(playersRef.where("type", "==", "registered").where("role", "==", "admin")) :
+          null;
         return {clubId, playerRef: playersRef.doc(uid), player, adminsSnap};
       }),
     );

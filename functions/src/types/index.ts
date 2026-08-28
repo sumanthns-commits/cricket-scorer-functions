@@ -70,5 +70,6 @@ export interface ApiKey {
 export type PushNotificationData =
   | { type: "join_request"; clubId: string }
   | { type: "join_approved"; clubId: string }
+  | { type: "made_admin"; clubId: string }
   | { type: "match_live"; clubId: string; matchId: string }
   | { type: "match_finished"; clubId: string; matchId: string };

@@ -14,7 +14,7 @@ Companion app repo: `../cricket-scorer-app`
 functions/src/
   functions/
     matches/   ← onMatchCompleted, onMatchLive, onMatchAbandoned (Firestore triggers)
-    players/   ← linkGhost, unlinkGhost, mirrorPlayerStats
+    players/   ← linkGhost, unlinkGhost, mirrorPlayerStats, onMemberPromotedToAdmin
     clubs/     ← resolveJoinRequest, onJoinRequestCreated, syncClubNameArchived, cleanupArchivedClubs,
                  leaveClub, removeMember
     account/   ← deleteAccount
@@ -53,6 +53,7 @@ functions/src/
 | `onMatchLive` | `clubs/{clubId}/matches/{matchId}` written | When status transitions to 'live' (create-as-live or 'scheduled'→'live' update — guarded so it never re-fires on a later write to an already-live match): sends the "match started" push notification to registered members, minus the scorer. |
 | `onMatchAbandoned` | `clubs/{clubId}/matches/{matchId}` updated | When status transitions to 'abandoned': sends the "match finished" push notification to registered members, minus the scorer. No stats logic — kept separate from `onMatchCompleted` on purpose. |
 | `mirrorPlayerStats` | `clubs/{clubId}/players/{playerId}` written | Copies public-safe fields to `publicPlayerStats/{uid}_{clubId}` so any signed-in user can read stats without club membership. |
+| `onMemberPromotedToAdmin` | `clubs/{clubId}/players/{playerId}` written | When `role` transitions to 'admin' on an update (never fires on create, so the club creator's initial admin role doesn't count as a "promotion"): sends a fun "you're an admin now" push notification to that player. |
 | `syncClubNameArchived` | `clubs/{clubId}` written | Propagates club name / archived flag changes to member player docs. |
 | `onJoinRequestCreated` | `clubs/{clubId}/joinRequests/{requesterUid}` created | Sends a push notification to every admin of the club (per-club `role==='admin'`, not a global admins list). |
 
@@ -211,9 +212,9 @@ since `functions/package.json` has no `"type":"module"`; per-chunk ticket prunin
 delegates to `sendPushToUsers` with `requireMatchPref: true`).
 
 Only match-live/match-finished sends pass `requireMatchPref: true` (respects
-`users/{uid}.notificationPrefs.matchNotifications`, default on) — join-request/approval
-sends never gate on it, always sending regardless. All four trigger functions wrap their
-send in try/catch and never let a notification failure affect already-committed data;
+`users/{uid}.notificationPrefs.matchNotifications`, default on) — join-request/approval/
+made-admin sends never gate on it, always sending regardless. All trigger functions wrap
+their send in try/catch and never let a notification failure affect already-committed data;
 none currently de-dup against Cloud Functions' at-least-once delivery, so a redelivered
 event could in rare cases send the same push twice.
 

@@ -20,6 +20,7 @@ export {syncClubNameArchived} from "./functions/clubs/syncClubNameArchived.js";
 export {linkGhost} from "./functions/players/linkGhost.js";
 export {unlinkGhost} from "./functions/players/unlinkGhost.js";
 export {mirrorPlayerStats} from "./functions/players/mirrorPlayerStats.js";
+export {onMemberPromotedToAdmin} from "./functions/players/onMemberPromotedToAdmin.js";
 
 export {getAvailablePlayers} from "./functions/tools/getAvailablePlayers.js";
 export {getClubPlayerStats} from "./functions/tools/getClubPlayerStats.js";

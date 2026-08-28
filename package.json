@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "emulators": "firebase emulators:start --project cricket-scorer-staging --import=./functions/.emulator-data --export-on-exit"
   },
   "keywords": [],
   "author": "",

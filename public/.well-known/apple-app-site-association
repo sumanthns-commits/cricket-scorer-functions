@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "XX6C8R37FJ.com.crease.app",
+        "paths": ["/poll/*"]
+      }
+    ]
+  }
+}

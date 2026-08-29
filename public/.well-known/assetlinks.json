@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.crease.cricket",
+      "sha256_cert_fingerprints": [
+        "1F:81:D5:00:D4:91:6B:0A:13:23:C0:D1:77:97:AF:4C:C6:C6:AC:BC:F4:0C:CB:5E:7B:A2:05:F3:2E:38:59:9C"
+      ]
+    }
+  }
+]

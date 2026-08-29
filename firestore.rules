@@ -124,6 +124,33 @@ service cloud.firestore {
         allow delete: if request.auth.uid == requestId;
         allow update: if false;
       }
+
+      // ── Match interest polls ──
+      // Admin creates/edits the poll; any signed-in user may read it (not just
+      // members) so a non-member who taps a shared link still sees the
+      // question before being asked to join — same reasoning as the
+      // clubs/{clubId} doc rule above. Conversion (status bookkeeping via
+      // convertedMatches) is also a plain admin update, done client-side
+      // alongside createMatch() — no Cloud Function involved.
+      match /matchPolls/{pollId} {
+        allow read: if isSignedIn();
+        allow create, update: if isAdmin(clubId);
+        // Admin-only manual delete (see matchPollService.deletePoll — also
+        // clears the responses subcollection first, since deletes don't
+        // cascade). Expired polls are swept up separately by the
+        // cleanupExpiredPolls scheduled Cloud Function via the Admin SDK,
+        // which bypasses these rules entirely.
+        allow delete: if isAdmin(clubId);
+
+        // One response per member (doc id = their own uid), same self-scoped
+        // shape as joinRequests. Unlike joinRequests, update is allowed — a
+        // member can change their answer any time before conversion.
+        match /responses/{uid} {
+          allow read: if isMember(clubId);
+          allow create, update: if isMember(clubId) && request.auth.uid == uid;
+          allow delete: if isAdmin(clubId) || request.auth.uid == uid;
+        }
+      }
     }
   }
 }

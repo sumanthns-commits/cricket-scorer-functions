@@ -21,12 +21,33 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "hosting": {
+    "public": "public",
+    "ignore": ["firebase.json", "**/node_modules/**"],
+    "headers": [
+      {
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      },
+      {
+        "source": "/.well-known/assetlinks.json",
+        "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/poll/**",
+        "function": { "functionId": "pollLandingPage", "region": "australia-southeast1" }
+      }
+    ]
+  },
   "emulators": {
     "auth": { "host": "0.0.0.0", "port": 9099 },
     "functions": { "host": "0.0.0.0", "port": 5001 },
     "firestore": { "host": "0.0.0.0", "port": 8080 },
     "eventarc": { "host": "0.0.0.0", "port": 9299 },
     "tasks": { "host": "0.0.0.0", "port": 9499 },
+    "hosting": { "port": 5000 },
     "ui": { "enabled": true, "host": "0.0.0.0", "port": 4000 },
     "singleProjectMode": true
   }

@@ -72,4 +72,5 @@ export type PushNotificationData =
   | { type: "join_approved"; clubId: string }
   | { type: "made_admin"; clubId: string }
   | { type: "match_live"; clubId: string; matchId: string }
-  | { type: "match_finished"; clubId: string; matchId: string };
+  | { type: "match_finished"; clubId: string; matchId: string }
+  | { type: "match_poll"; clubId: string; pollId: string };

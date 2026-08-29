@@ -17,6 +17,10 @@ export {removeMember} from "./functions/clubs/removeMember.js";
 export {resolveJoinRequest} from "./functions/clubs/resolveJoinRequest.js";
 export {syncClubNameArchived} from "./functions/clubs/syncClubNameArchived.js";
 
+export {onPollCreated} from "./functions/polls/onPollCreated.js";
+export {cleanupExpiredPolls} from "./functions/polls/cleanupExpiredPolls.js";
+export {pollLandingPage} from "./functions/polls/pollLandingPage.js";
+
 export {linkGhost} from "./functions/players/linkGhost.js";
 export {unlinkGhost} from "./functions/players/unlinkGhost.js";
 export {mirrorPlayerStats} from "./functions/players/mirrorPlayerStats.js";

@@ -18,6 +18,8 @@ export {resolveJoinRequest} from "./functions/clubs/resolveJoinRequest.js";
 export {syncClubNameArchived} from "./functions/clubs/syncClubNameArchived.js";
 
 export {onPollCreated} from "./functions/polls/onPollCreated.js";
+export {onPollResponseWritten} from "./functions/polls/onPollResponseWritten.js";
+export {sendPollReminders} from "./functions/polls/sendPollReminders.js";
 export {cleanupExpiredPolls} from "./functions/polls/cleanupExpiredPolls.js";
 export {pollLandingPage} from "./functions/polls/pollLandingPage.js";
 

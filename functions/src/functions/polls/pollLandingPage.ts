@@ -1,33 +1,24 @@
 import {onRequest} from "firebase-functions/v2/https";
-import {getFirestore} from "firebase-admin/firestore";
-import {logger} from "firebase-functions/v2";
 
 const REGION = "australia-southeast1";
+// Deliberately static and identical for every poll — the actual question
+// already appears in the sender's own message text; the auto-generated
+// preview card is just a clean, minimal, always-the-same branded stamp
+// with no description line and nothing else in it.
+const CARD_TITLE = "🏏 Crease — Match Poll";
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function renderPage(opts: { title: string; description?: string; deepLink?: string }): string {
-  const deepLinkJs = opts.deepLink ?
-    `window.__deepLink = ${JSON.stringify(opts.deepLink)}; window.location.href = window.__deepLink;` :
+function renderPage(deepLink?: string): string {
+  const deepLinkJs = deepLink ?
+    `window.__deepLink = ${JSON.stringify(deepLink)}; window.location.href = window.__deepLink;` :
     "window.__deepLink = null;";
-  const descriptionTag = opts.description ?
-    `<meta property="og:description" content="${escapeHtml(opts.description)}">` :
-    "";
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${escapeHtml(opts.title)}</title>
+<title>${CARD_TITLE}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta property="og:title" content="${escapeHtml(opts.title)}">
-${descriptionTag}
+<meta property="og:title" content="${CARD_TITLE}">
 <meta property="og:type" content="website">
 <script>${deepLinkJs}</script>
 <style>
@@ -95,54 +86,21 @@ ${descriptionTag}
 }
 
 /**
- * Dynamic replacement for the old static public/poll/index.html — a Hosting
- * rewrite (see firebase.json) sends every /poll/{clubId}/{pollId} request
- * here instead. Renders per-poll Open Graph tags (the actual question/venue)
- * so WhatsApp's own link-preview card reflects the specific poll rather than
- * a generic "Crease — Match Poll" title, then redirects to the custom-scheme
- * deep link (same fallback-after-a-beat UX as before) for anyone who lands
- * on the page itself rather than being intercepted by Universal/App Links.
+ * Landing page for shared match-poll links — a Hosting rewrite (see
+ * firebase.json) sends every /poll/{clubId}/{pollId} request here instead of
+ * a static file. No Firestore lookup: the Open Graph title/description are
+ * intentionally static and identical for every poll (see CARD_TITLE above),
+ * so this only needs to parse clubId/pollId out of the path to build the
+ * custom-scheme redirect — same fallback-after-a-beat UX as before, for
+ * anyone who lands on the page itself rather than being intercepted by
+ * Universal/App Links.
  */
-export const pollLandingPage = onRequest({region: REGION, invoker: "public"}, async (req, res) => {
-  logger.info(`pollLandingPage: req.path=${req.path} req.originalUrl=${req.originalUrl}`);
+export const pollLandingPage = onRequest({region: REGION, invoker: "public"}, (req, res) => {
   const match = req.path.match(/\/poll\/([^/]+)\/([^/?#]+)/);
   if (!match) {
-    logger.warn("pollLandingPage: path did not match expected /poll/{clubId}/{pollId} shape");
-    res.status(404).send(renderPage({title: "🏏 Crease — Match Poll"}));
+    res.status(404).send(renderPage());
     return;
   }
   const [, clubId, pollId] = match;
-  logger.info(`pollLandingPage: parsed clubId=${clubId} pollId=${pollId}`);
-  const deepLink = `cricket-scorer-app://poll/${clubId}/${pollId}`;
-
-  try {
-    const db = getFirestore();
-    const snap = await db.collection("clubs").doc(clubId).collection("matchPolls").doc(pollId).get();
-    const data = snap.data();
-    if (!data) {
-      logger.warn(`pollLandingPage: no poll doc at clubs/${clubId}/matchPolls/${pollId}`);
-      res.status(200).send(renderPage({
-        title: "🏏 Crease — Match Poll",
-        description: "This poll may have expired or been removed.",
-        deepLink,
-      }));
-      return;
-    }
-
-    const question = (data.question as string) ?? "Match Poll";
-    const venue = data.venue as string | undefined;
-    const options = (data.options as {label: string}[] | undefined) ?? [];
-    const multiSelect = data.multiSelect as boolean | undefined;
-
-    // Only real, poll-specific info here — no generic "tap to say if you're
-    // in" filler line; if there's nothing specific to add, the question in
-    // the title carries the card on its own.
-    const optionsPart = multiSelect && options.length > 0 ? options.map((o) => o.label).join(" or ") : "";
-    const venuePart = venue ?? "";
-    const description = [venuePart, optionsPart].filter(Boolean).join(" · ");
-
-    res.status(200).send(renderPage({title: `🏏 ${question}`, description: description || undefined, deepLink}));
-  } catch {
-    res.status(200).send(renderPage({title: "🏏 Crease — Match Poll", deepLink}));
-  }
+  res.status(200).send(renderPage(`cricket-scorer-app://poll/${clubId}/${pollId}`));
 });

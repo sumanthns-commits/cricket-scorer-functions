@@ -17,6 +17,8 @@ functions/src/
     players/   ← linkGhost, unlinkGhost, mirrorPlayerStats, onMemberPromotedToAdmin
     clubs/     ← resolveJoinRequest, onJoinRequestCreated, syncClubNameArchived, cleanupArchivedClubs,
                  leaveClub, removeMember
+    polls/     ← onPollCreated, onPollResponseWritten (Firestore triggers), sendPollReminders,
+                 cleanupExpiredPolls (scheduled), pollLandingPage (HTTPS, behind a Hosting rewrite)
     account/   ← deleteAccount
     imports/   ← onStatsImport (Storage trigger)
     tools/     ← AI data tools (one callable per file)
@@ -56,6 +58,8 @@ functions/src/
 | `onMemberPromotedToAdmin` | `clubs/{clubId}/players/{playerId}` written | When `role` transitions to 'admin' on an update (never fires on create, so the club creator's initial admin role doesn't count as a "promotion"): sends a fun "you're an admin now" push notification to that player. |
 | `syncClubNameArchived` | `clubs/{clubId}` written | Propagates club name / archived flag changes to member player docs. |
 | `onJoinRequestCreated` | `clubs/{clubId}/joinRequests/{requesterUid}` created | Sends a push notification to every admin of the club (per-club `role==='admin'`, not a global admins list). |
+| `onPollCreated` | `clubs/{clubId}/matchPolls/{pollId}` created | Notifies every registered club member (minus the creator) of a new match interest poll. |
+| `onPollResponseWritten` | `clubs/{clubId}/matchPolls/{pollId}/responses/{uid}` written | Per schedulable option touched by the write, recomputes its respondent count against `minResponses` and flips `optionThresholdMet` — a live toggle, not one-shot — broadcasting "Game's on!"/"Game's off!" to the whole club on each crossing. See "Match interest polls" below. |
 
 ### Storage trigger
 | Function | Trigger | What it does |
@@ -66,6 +70,13 @@ functions/src/
 | Function | Schedule | What it does |
 |---|---|---|
 | `cleanupArchivedClubs` | Every 24 h (Australia/Sydney) | Deletes data for clubs archived beyond retention period. |
+| `sendPollReminders` | Every 4 h | Nudges club members who haven't responded to a still-open match poll; stops evaluating a schedulable option once it's resolved (threshold met, converted to a match, or its date passed). |
+| `cleanupExpiredPolls` | Every 24 h (Australia/Sydney) | Permanently deletes match polls (+ their `responses` subcollection) a day after their last candidate date. |
+
+### HTTPS (behind a Hosting rewrite)
+| Function | Route | What it does |
+|---|---|---|
+| `pollLandingPage` | `firebase.json` rewrites `/poll/**` here | Landing page for shared match-poll links. Static, always-identical branded Open Graph card (the actual question already appears in the sender's own share-message text, so the card doesn't need to duplicate it — see "Hosting" below) plus a client-side redirect to the app's custom URL scheme, for anyone who lands on the page itself rather than being intercepted by Universal/App Links (most commonly WhatsApp's in-app browser, which doesn't always hand a tap to the OS's link resolver). |
 
 ### Callables (onCall, invoker: "public")
 **Player / ghost management**
@@ -211,12 +222,82 @@ since `functions/package.json` has no `"type":"module"`; per-chunk ticket prunin
 `notifyRegisteredMembers` (queries `clubs/{clubId}/players` where `type=='registered'`,
 delegates to `sendPushToUsers` with `requireMatchPref: true`).
 
-Only match-live/match-finished sends pass `requireMatchPref: true` (respects
-`users/{uid}.notificationPrefs.matchNotifications`, default on) — join-request/approval/
-made-admin sends never gate on it, always sending regardless. All trigger functions wrap
-their send in try/catch and never let a notification failure affect already-committed data;
-none currently de-dup against Cloud Functions' at-least-once delivery, so a redelivered
-event could in rare cases send the same push twice.
+Anything routed through `notifyRegisteredMembers` (match-live, match-finished, all match-poll
+sends) respects the per-user opt-out (`users/{uid}.notificationPrefs.matchNotifications`,
+default on) since that helper hardcodes `requireMatchPref: true`; `sendPollReminders` calls
+`sendPushToUsers` directly (it needs a specific uid subset, not the whole club) but passes
+the same flag explicitly for consistency. join-request/approval/made-admin sends call
+`sendPushToUsers` without it, always sending regardless. All trigger functions wrap their
+send in try/catch and never let a notification failure affect already-committed data; none
+currently de-dup against Cloud Functions' at-least-once delivery, so a redelivered event
+could in rare cases send the same push twice.
+
+## Match interest polls (IMPLEMENTED)
+Backs the app repo's poll feature (admin creates a poll to gauge interest before scheduling
+a match; see app repo CLAUDE.md for the full client-side flow, data model, and screens).
+Poll docs/responses are plain client writes gated by Firestore rules (`matchPolls`: admin
+create/update, any signed-in user read; `responses/{uid}`: self-scoped create/update/delete,
+member read) — no callable needed for creating a poll, responding, or converting it to a
+match; only the notification/reminder side lives in this repo.
+
+- **`onPollCreated`** (`onDocumentCreated` on `matchPolls/{pollId}`) — `notifyRegisteredMembers`
+  minus the creator, title "New match poll", body = the question.
+- **`sendPollReminders`** (`onSchedule`, every 4 h) — iterates every club's `matchPolls` as a
+  plain collection read (no `collectionGroup` query, so no extra Firestore index needed).
+  Per poll: skips if `expiresAt` has passed, or if `lastReminderCheckAt` (defaults to
+  `createdAt`) is under 4 h old. Otherwise checks whether **any** schedulable option is still
+  "open" (not converted, date not passed, `optionThresholdMet[id] !== true`) — if none are,
+  stamps `lastReminderCheckAt` and moves on (the poll's reminder cycle is done); if at least
+  one is, finds registered members with no doc at all in `responses` (an explicit "No"
+  counts as responded — only true non-responders get nudged) and pushes them a reminder,
+  then stamps `lastReminderCheckAt` regardless.
+- **`onPollResponseWritten`** (`onDocumentWritten` on `responses/{uid}`) — for every optionId
+  in the union of the before-doc's and after-doc's `optionIds` (removing an option from your
+  response can drop its count below threshold just as much as adding one raises it, even
+  though the removed option no longer appears in the new doc), runs a transaction: reads the
+  poll doc + a fresh `responses` count where `optionIds array-contains optionId`, compares
+  against `option.minResponses`, and — only on an actual crossing (met→not-met or vice
+  versa) — writes the new `optionThresholdMet[optionId]` and returns the transition data.
+  Outside the transaction (transactions must stay side-effect-free, so the push send happens
+  after commit, same pattern as `resolveJoinRequest`'s post-commit sends), broadcasts via
+  `notifyRegisteredMembers`:
+  - Crossing up: **"🏏 Game's on!"** — "Match is happening on {day} at {time}. We've got {n}
+    players! Already in? Don't drop out. Haven't answered yet (or picked something else)?
+    Jump in, there's room"
+  - Crossing down: **"😬 Game's off — for now"** — "Match on {day} at {time} is no longer on
+    — we've dropped below the minimum ({n} players). Haven't answered yet (or picked
+    something else)? Jump in now to help bring it back!"
+
+  `optionThresholdMet` is a live toggle, not a one-time flag — it can fire either
+  notification more than once if responses fluctuate across the line (e.g. on → off → on
+  again each re-notify).
+- **`cleanupExpiredPolls`** (`onSchedule`, every 24 h, Australia/Sydney) — mirrors
+  `cleanupArchivedClubs`'s shape: iterates clubs, then each club's `matchPolls` where
+  `expiresAt <= now`, `recursiveDelete`s each (poll doc + `responses` subcollection in one
+  call). `expiresAt` is computed client-side at creation as one day after the latest
+  `proposedDate` across a poll's options.
+- **`pollLandingPage`** — see Hosting below.
+
+## Hosting
+New in this repo alongside the match-poll feature — previously no Hosting site existed at
+all. `firebase.json`'s `hosting.rewrites` sends every `/poll/**` request to the
+`pollLandingPage` function (rewrite target uses the `{functionId, region}` object form, not
+a bare function name, since the function isn't in the default `us-central1`). `public/`
+holds only the two `.well-known` files needed for Universal Links (iOS)/App Links (Android)
+to verify this domain owns the app:
+- `.well-known/apple-app-site-association` — `appID` uses the Apple Team ID
+  (`XX6C8R37FJ.com.crease.app`), `paths: ["/poll/*"]`.
+- `.well-known/assetlinks.json` — `package_name: "com.crease.cricket"`,
+  `sha256_cert_fingerprints` (both the release keystore's and, if testing a dev-client build,
+  the debug keystore's — Android's Universal/App Link verification only trusts whichever key
+  actually signed the installed APK).
+
+Both need `Content-Type: application/json` forced via `hosting.headers` (Hosting doesn't
+infer it correctly for extensionless/`.json` files under `.well-known` by default), and
+`hosting.ignore` deliberately omits the default `**/.*` glob — that pattern excludes
+dot-directories, which would silently drop `.well-known/` from every deploy.
+
+Domain: `crease-24487.web.app` (Firebase's free default — no custom domain in use).
 
 ## Deploy
 ```

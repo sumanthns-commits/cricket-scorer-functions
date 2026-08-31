@@ -222,6 +222,15 @@ since `functions/package.json` has no `"type":"module"`; per-chunk ticket prunin
 `notifyRegisteredMembers` (queries `clubs/{clubId}/players` where `type=='registered'`,
 delegates to `sendPushToUsers` with `requireMatchPref: true`).
 
+Every message `sendPushToUsers` builds sets `icon: NOTIFICATION_ICON_URL` (Android's large
+icon, shown in the expanded notification) — a 256px copy of the app icon hosted on this
+repo's own Firebase Hosting site at `/assets/notification-icon.png` (Expo's push relay
+fetches it per send, so it has to be a public URL, not a bundled asset). Android's small
+status-bar icon is separate again — a monochrome silhouette baked into the native build via
+the app repo's `app.json` `expo-notifications` plugin config, not controllable from a push
+payload field. iOS shows the app icon automatically on every notification regardless of any
+of this — nothing to configure server-side there.
+
 Anything routed through `notifyRegisteredMembers` (match-live, match-finished, all match-poll
 sends) respects the per-user opt-out (`users/{uid}.notificationPrefs.matchNotifications`,
 default on) since that helper hardcodes `requireMatchPref: true`; `sendPollReminders` calls

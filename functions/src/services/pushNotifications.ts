@@ -5,6 +5,17 @@ import type {PushNotificationData} from "../types/index.js";
 
 const expo = new Expo();
 
+// Android-only (per Expo's push payload) — the large icon shown in the
+// expanded notification. iOS shows the app icon automatically for every
+// notification regardless, no server-side control needed there. The small
+// Android status-bar icon is separate again — a monochrome silhouette baked
+// into the native build via app.json's expo-notifications plugin
+// (assets/android-icon-monochrome.png), not something a push payload field
+// can change. Hosted on this repo's own Firebase Hosting site, resized to
+// 256px (Expo's push relay fetches it per send — no need for the full
+// 1024px app-icon source).
+const NOTIFICATION_ICON_URL = "https://crease-24487.web.app/assets/notification-icon.png";
+
 interface Recipient {
   uid: string;
   token: string;
@@ -58,6 +69,7 @@ export async function sendPushToUsers(params: SendPushParams): Promise<void> {
       title,
       body,
       data,
+      icon: NOTIFICATION_ICON_URL,
     }));
 
     // chunkPushNotifications only groups by size limit — it never reorders,

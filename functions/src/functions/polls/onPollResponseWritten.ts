@@ -49,6 +49,12 @@ export const onPollResponseWritten = onDocumentWritten(
     const db = getFirestore();
     const pollRef = db.collection("clubs").doc(clubId).collection("matchPolls").doc(pollId);
 
+    // Fetched once, outside the per-option loop below — a club's name can't
+    // change mid-write, and a member can belong to more than one club, so
+    // every notification here needs it to say which club is on/off.
+    const clubSnap = await db.collection("clubs").doc(clubId).get();
+    const clubName = (clubSnap.data()?.name as string | undefined) ?? "Your club";
+
     for (const optionId of touchedOptionIds) {
       try {
         const transition = await db.runTransaction(async (tx) => {
@@ -81,7 +87,7 @@ export const onPollResponseWritten = onDocumentWritten(
         if (isMet) {
           await notifyRegisteredMembers({
             clubId,
-            title: "🏏 Game's on!",
+            title: `${clubName} — 🏏 Game's on!`,
             body: `Match is happening on ${day} at ${time}. We've got ${count} players! Already in? ` +
               "Don't drop out. Haven't answered yet (or picked something else)? Jump in, there's room",
             data: {type: "match_poll", clubId, pollId},
@@ -89,7 +95,7 @@ export const onPollResponseWritten = onDocumentWritten(
         } else {
           await notifyRegisteredMembers({
             clubId,
-            title: "😬 Game's off — for now",
+            title: `${clubName} — 😬 Game's off — for now`,
             body: `Match on ${day} at ${time} is no longer on — we've dropped below the minimum ` +
               `(${count} players). Haven't answered yet (or picked something else)? Jump in now to help bring it back!`,
             data: {type: "match_poll", clubId, pollId},

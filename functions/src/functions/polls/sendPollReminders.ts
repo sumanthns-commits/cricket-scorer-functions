@@ -35,6 +35,7 @@ export const sendPollReminders = onSchedule(
     const clubsSnap = await db.collection("clubs").get();
     for (const clubDoc of clubsSnap.docs) {
       const clubId = clubDoc.id;
+      const clubName = (clubDoc.data().name as string | undefined) ?? "Your club";
       const pollsSnap = await clubDoc.ref.collection("matchPolls").get();
 
       for (const pollDoc of pollsSnap.docs) {
@@ -77,7 +78,7 @@ export const sendPollReminders = onSchedule(
           if (nonResponderUids.length > 0) {
             await sendPushToUsers({
               uids: nonResponderUids,
-              title: "Still waiting on you 🏏",
+              title: `${clubName} — Still waiting on you 🏏`,
               body: (poll.question as string | undefined) ?? "New match poll",
               data: {type: "match_poll", clubId, pollId: pollDoc.id},
               requireMatchPref: true,

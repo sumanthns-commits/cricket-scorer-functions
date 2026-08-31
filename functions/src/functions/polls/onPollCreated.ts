@@ -1,4 +1,5 @@
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import {getFirestore} from "firebase-admin/firestore";
 import {notifyRegisteredMembers} from "../../services/pushNotifications.js";
 
 const REGION = "australia-southeast1";
@@ -20,10 +21,15 @@ export const onPollCreated = onDocumentCreated(
     const createdBy = data.createdBy as string | undefined;
 
     try {
+      // Club name in the title — a member can belong to more than one club,
+      // so "New match poll" alone doesn't say which one this is about.
+      const clubSnap = await getFirestore().collection("clubs").doc(clubId).get();
+      const clubName = (clubSnap.data()?.name as string | undefined) ?? "Your club";
+
       await notifyRegisteredMembers({
         clubId,
         excludeUid: createdBy,
-        title: "New match poll",
+        title: `${clubName} — New match poll`,
         body: question,
         data: {type: "match_poll", clubId, pollId},
       });

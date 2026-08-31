@@ -1,24 +1,34 @@
 import {onRequest} from "firebase-functions/v2/https";
+import {getFirestore} from "firebase-admin/firestore";
 
 const REGION = "australia-southeast1";
-// Deliberately static and identical for every poll — the actual question
-// already appears in the sender's own message text; the auto-generated
-// preview card is just a clean, minimal, always-the-same branded stamp
-// with no description line and nothing else in it.
-const CARD_TITLE = "🏏 Crease — Match Poll";
+// Fallback only — the real title is "🏏 {clubName} — Match Poll" once the
+// club doc lookup below succeeds. Deliberately does NOT include the poll
+// question itself: that already appears in the sender's own message text,
+// so the card doesn't need to duplicate it — just enough to say which club.
+const DEFAULT_TITLE = "🏏 Crease — Match Poll";
 
-function renderPage(deepLink?: string): string {
-  const deepLinkJs = deepLink ?
-    `window.__deepLink = ${JSON.stringify(deepLink)}; window.location.href = window.__deepLink;` :
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderPage(opts: { title?: string; deepLink?: string }): string {
+  const title = opts.title ? escapeHtml(opts.title) : DEFAULT_TITLE;
+  const deepLinkJs = opts.deepLink ?
+    `window.__deepLink = ${JSON.stringify(opts.deepLink)}; window.location.href = window.__deepLink;` :
     "window.__deepLink = null;";
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${CARD_TITLE}</title>
+<title>${title}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta property="og:title" content="${CARD_TITLE}">
+<meta property="og:title" content="${title}">
 <meta property="og:type" content="website">
 <script>${deepLinkJs}</script>
 <style>
@@ -88,19 +98,28 @@ function renderPage(deepLink?: string): string {
 /**
  * Landing page for shared match-poll links — a Hosting rewrite (see
  * firebase.json) sends every /poll/{clubId}/{pollId} request here instead of
- * a static file. No Firestore lookup: the Open Graph title/description are
- * intentionally static and identical for every poll (see CARD_TITLE above),
- * so this only needs to parse clubId/pollId out of the path to build the
- * custom-scheme redirect — same fallback-after-a-beat UX as before, for
+ * a static file. Only reads the club doc (not the poll doc) — the title
+ * says which club the poll belongs to, but never the question/venue/etc,
+ * which already appear in the sender's own share-message text. Also builds
+ * the custom-scheme redirect — same fallback-after-a-beat UX as before, for
  * anyone who lands on the page itself rather than being intercepted by
  * Universal/App Links.
  */
-export const pollLandingPage = onRequest({region: REGION, invoker: "public"}, (req, res) => {
+export const pollLandingPage = onRequest({region: REGION, invoker: "public"}, async (req, res) => {
   const match = req.path.match(/\/poll\/([^/]+)\/([^/?#]+)/);
   if (!match) {
-    res.status(404).send(renderPage());
+    res.status(404).send(renderPage({}));
     return;
   }
   const [, clubId, pollId] = match;
-  res.status(200).send(renderPage(`cricket-scorer-app://poll/${clubId}/${pollId}`));
+  const deepLink = `cricket-scorer-app://poll/${clubId}/${pollId}`;
+
+  try {
+    const clubSnap = await getFirestore().collection("clubs").doc(clubId).get();
+    const clubName = clubSnap.data()?.name as string | undefined;
+    const title = clubName ? `🏏 ${clubName} — Match Poll` : undefined;
+    res.status(200).send(renderPage({title, deepLink}));
+  } catch {
+    res.status(200).send(renderPage({deepLink}));
+  }
 });

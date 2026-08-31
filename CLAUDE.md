@@ -76,7 +76,7 @@ functions/src/
 ### HTTPS (behind a Hosting rewrite)
 | Function | Route | What it does |
 |---|---|---|
-| `pollLandingPage` | `firebase.json` rewrites `/poll/**` here | Landing page for shared match-poll links. Static, always-identical branded Open Graph card (the actual question already appears in the sender's own share-message text, so the card doesn't need to duplicate it — see "Hosting" below) plus a client-side redirect to the app's custom URL scheme, for anyone who lands on the page itself rather than being intercepted by Universal/App Links (most commonly WhatsApp's in-app browser, which doesn't always hand a tap to the OS's link resolver). |
+| `pollLandingPage` | `firebase.json` rewrites `/poll/**` here | Landing page for shared match-poll links. Branded Open Graph card titled `"🏏 {clubName} — Match Poll"` (one Firestore read of just the club doc, not the poll doc — the actual question/venue/etc already appear in the sender's own share-message text, so the card doesn't need to duplicate them — see "Hosting" below) plus a client-side redirect to the app's custom URL scheme, for anyone who lands on the page itself rather than being intercepted by Universal/App Links (most commonly WhatsApp's in-app browser, which doesn't always hand a tap to the OS's link resolver). |
 
 ### Callables (onCall, invoker: "public")
 **Player / ghost management**
@@ -240,8 +240,11 @@ create/update, any signed-in user read; `responses/{uid}`: self-scoped create/up
 member read) — no callable needed for creating a poll, responding, or converting it to a
 match; only the notification/reminder side lives in this repo.
 
+All four poll notification titles below are prefixed `"{clubName} — "` — a member can belong
+to more than one club, so the title needs to say which one without opening the notification.
+
 - **`onPollCreated`** (`onDocumentCreated` on `matchPolls/{pollId}`) — `notifyRegisteredMembers`
-  minus the creator, title "New match poll", body = the question.
+  minus the creator, title `"{clubName} — New match poll"`, body = the question.
 - **`sendPollReminders`** (`onSchedule`, every 4 h) — iterates every club's `matchPolls` as a
   plain collection read (no `collectionGroup` query, so no extra Firestore index needed).
   Per poll: skips if `expiresAt` has passed, or if `lastReminderCheckAt` (defaults to
@@ -261,12 +264,12 @@ match; only the notification/reminder side lives in this repo.
   Outside the transaction (transactions must stay side-effect-free, so the push send happens
   after commit, same pattern as `resolveJoinRequest`'s post-commit sends), broadcasts via
   `notifyRegisteredMembers`:
-  - Crossing up: **"🏏 Game's on!"** — "Match is happening on {day} at {time}. We've got {n}
-    players! Already in? Don't drop out. Haven't answered yet (or picked something else)?
-    Jump in, there's room"
-  - Crossing down: **"😬 Game's off — for now"** — "Match on {day} at {time} is no longer on
-    — we've dropped below the minimum ({n} players). Haven't answered yet (or picked
-    something else)? Jump in now to help bring it back!"
+  - Crossing up: **"{clubName} — 🏏 Game's on!"** — "Match is happening on {day} at {time}.
+    We've got {n} players! Already in? Don't drop out. Haven't answered yet (or picked
+    something else)? Jump in, there's room"
+  - Crossing down: **"{clubName} — 😬 Game's off — for now"** — "Match on {day} at {time} is
+    no longer on — we've dropped below the minimum ({n} players). Haven't answered yet (or
+    picked something else)? Jump in now to help bring it back!"
 
   `optionThresholdMet` is a live toggle, not a one-time flag — it can fire either
   notification more than once if responses fluctuate across the line (e.g. on → off → on

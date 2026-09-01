@@ -72,6 +72,7 @@ functions/src/
 | `cleanupArchivedClubs` | Every 24 h (Australia/Sydney) | Deletes data for clubs archived beyond retention period. |
 | `sendPollReminders` | Every 4 h | Nudges club members who haven't responded to a still-open match poll; stops evaluating a schedulable option once it's resolved (threshold met, converted to a match, or its date passed). |
 | `cleanupExpiredPolls` | Every 24 h (Australia/Sydney) | Permanently deletes match polls (+ their `responses` subcollection) a day after their last candidate date. |
+| `checkPushReceipts` | Every 30 min (Australia/Sydney) | Resolves pending Expo push receipts (see "Push notifications" below) and prunes tokens Expo reports as `DeviceNotRegistered` at actual delivery time — separate from, and catches more than, the immediate ticket-time pruning in `sendPushToUsers`. |
 
 ### HTTPS (behind a Hosting rewrite)
 | Function | Route | What it does |
@@ -221,6 +222,22 @@ since `functions/package.json` has no `"type":"module"`; per-chunk ticket prunin
 `DeviceNotRegistered` tokens from the owning `users/{uid}.expoPushTokens`) and
 `notifyRegisteredMembers` (queries `clubs/{clubId}/players` where `type=='registered'`,
 delegates to `sendPushToUsers` with `requireMatchPref: true`).
+
+**Ticket vs. receipt (IMPLEMENTED, 2026-08)**: an Expo ticket `status: 'ok'` only means Expo
+*accepted* the send — it says nothing about whether the push actually reached the device.
+A token that's gone stale (app reinstalled, rebuilt locally, or uninstalled — this app's own
+local-rebuild-heavy workflow makes this common) still tickets `'ok'` every time and then
+fails silently at real delivery; that outcome only exists in Expo's separate receipts
+endpoint. `sendPushToUsers` writes a `pushReceipts/{receiptId}` doc (`uid`, `token`,
+`createdAt`) for every accepted ticket via `recordPendingReceipts`; the `checkPushReceipts`
+scheduled function (every 30 min) waits at least 15 min (Expo needs time to actually attempt
+delivery first) then resolves each via `getPushNotificationReceiptsAsync`, arrayRemoves the
+token on `DeviceNotRegistered` (same as the existing ticket-time pruning, just catching the
+cases that only surface later), logs any other error, and deletes the processed doc.
+Unresolved docs older than 48 h are dropped too — Expo itself only retains receipts about a
+day, so a still-missing one past that point never will resolve. Without this sweep, a stale
+token just silently swallows every future push to that user forever, with nothing in the
+logs to say so.
 
 Every message `sendPushToUsers` builds sets `icon: NOTIFICATION_ICON_URL` (Android's large
 icon, shown in the expanded notification) — a 256px copy of the app icon hosted on this

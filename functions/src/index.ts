@@ -40,3 +40,5 @@ export {getMatchContext} from "./functions/tools/getMatchContext.js";
 export {generateApiKey} from "./functions/apiKeys/generateApiKey.js";
 
 export {deleteAccount} from "./functions/account/deleteAccount.js";
+
+export {checkPushReceipts} from "./functions/notifications/checkPushReceipts.js";

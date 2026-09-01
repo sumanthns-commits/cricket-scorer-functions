@@ -1,6 +1,6 @@
 import {Expo} from "expo-server-sdk";
 import type {ExpoPushMessage, ExpoPushTicket} from "expo-server-sdk";
-import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {PushNotificationData} from "../types/index.js";
 
 const expo = new Expo();
@@ -82,7 +82,10 @@ export async function sendPushToUsers(params: SendPushParams): Promise<void> {
       offset += chunk.length;
       try {
         const tickets = await expo.sendPushNotificationsAsync(chunk);
-        await pruneInvalidTokens(db, tickets, chunkRecipients);
+        await Promise.all([
+          pruneInvalidTokens(db, tickets, chunkRecipients),
+          recordPendingReceipts(db, tickets, chunkRecipients),
+        ]);
       } catch (err) {
         console.error("[pushNotifications] chunk send failed", err);
       }
@@ -121,6 +124,33 @@ async function pruneInvalidTokens(
         .doc(recipient.uid)
         .update({expoPushTokens: FieldValue.arrayRemove(token)})
         .catch(() => undefined);
+    }),
+  );
+}
+
+// An 'ok' ticket only means Expo accepted the request — a token that's gone
+// stale (reinstall, rebuild, uninstall) still tickets 'ok' and then silently
+// fails at actual delivery. That real outcome only shows up in Expo's
+// separate receipts endpoint, which needs the send to have actually reached
+// Apple/Google first — so this just records the (uid, token) behind each
+// receipt id for checkPushReceipts (scheduled function) to resolve later,
+// rather than checking receipts inline here.
+async function recordPendingReceipts(
+  db: FirebaseFirestore.Firestore,
+  tickets: ExpoPushTicket[],
+  chunkRecipients: Recipient[],
+): Promise<void> {
+  const createdAt = Timestamp.now();
+  await Promise.all(
+    tickets.map((ticket, i) => {
+      if (ticket.status !== "ok") return undefined;
+      const recipient = chunkRecipients[i];
+      if (!recipient) return undefined;
+      return db.collection("pushReceipts").doc(ticket.id).set({
+        uid: recipient.uid,
+        token: recipient.token,
+        createdAt,
+      }).catch(() => undefined);
     }),
   );
 }

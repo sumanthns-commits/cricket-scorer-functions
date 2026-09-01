@@ -18,8 +18,13 @@ function escapeHtml(s: string): string {
 
 function renderPage(opts: { title?: string; deepLink?: string }): string {
   const title = opts.title ? escapeHtml(opts.title) : DEFAULT_TITLE;
+  // clubId/pollId (and so deepLink) come straight from the request path on
+  // this public, unauthenticated endpoint — never trust them into HTML
+  // as-is. `<` guards the </script> boundary (JSON.stringify alone
+  // doesn't escape "<", so a crafted path could otherwise close the script
+  // tag early); escapeHtml guards the href attribute below.
   const deepLinkJs = opts.deepLink ?
-    `window.__deepLink = ${JSON.stringify(opts.deepLink)}; window.location.href = window.__deepLink;` :
+    `window.__deepLink = ${JSON.stringify(opts.deepLink).replace(/</g, "\\u003c")}; window.location.href = window.__deepLink;` :
     "window.__deepLink = null;";
 
   return `<!doctype html>
@@ -57,7 +62,6 @@ function renderPage(opts: { title?: string; deepLink?: string }): string {
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   a.button {
-    display: none;
     margin-top: 22px;
     background: #16a34a;
     color: #ffffff;
@@ -65,10 +69,9 @@ function renderPage(opts: { title?: string; deepLink?: string }): string {
     font-weight: 700;
     padding: 14px 28px;
     border-radius: 10px;
+    display: ${opts.deepLink ? "inline-block" : "none"};
   }
-  .hint { margin-top: 20px; font-size: 12px; display: none; }
-  .fallback-visible a.button, .fallback-visible .hint { display: inline-block; }
-  .fallback-visible .spinner { display: none; }
+  .hint { margin-top: 20px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -77,18 +80,21 @@ function renderPage(opts: { title?: string; deepLink?: string }): string {
     <h1>Opening Crease…</h1>
     <p id="status-text">Taking you to the match poll.</p>
     <div class="spinner"></div>
-    <a class="button" id="open-app" href="#">Open in Crease</a>
+    <a class="button" id="open-app" href="${opts.deepLink ? escapeHtml(opts.deepLink) : "#"}">Open in Crease</a>
     <p class="hint">Don't have Crease yet? Ask your club admin for an invite.</p>
   </div>
   <script>
+    // The auto-redirect above (window.location.href) can be silently
+    // blocked by an in-app browser (e.g. WhatsApp's) when it isn't tied to a
+    // direct user gesture — some WebViews only allow non-http(s) scheme
+    // navigation from an actual tap. The "Open in Crease" button is a real
+    // link with the deep link already wired in from the first render (not
+    // added after a delay), so there's always a guaranteed tap-through path
+    // even when the automatic redirect above never fires.
     setTimeout(function () {
-      if (window.__deepLink) {
-        document.getElementById('open-app').href = window.__deepLink;
-      }
       document.getElementById('status-text').textContent = window.__deepLink
-        ? "Didn't open automatically?"
+        ? "Didn't open automatically? Tap below."
         : 'This link looks invalid.';
-      document.getElementById('card').classList.add('fallback-visible');
     }, 1500);
   </script>
 </body>
